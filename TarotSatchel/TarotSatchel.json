@@ -1,0 +1,11 @@
+{
+	"id": "TarotSatchel",
+	"name": "Tarot Satchel",
+	"author": "Tarot Satchel",
+	"description": "Adds a 2-slot tarot belt. Tarot cards drop from combats (with an adaptive pity roll). Outside combat, use a stored tarot to add it to your draw pile for the next combat.",
+	"version": "0.1.0",
+	"has_pck": false,
+	"has_dll": true,
+	"affects_gameplay": true,
+	"min_game_version": "0.113.0"
+}

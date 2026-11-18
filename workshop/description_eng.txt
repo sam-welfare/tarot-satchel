@@ -1,0 +1,23 @@
+TAROT SATCHEL
+
+Turns the tarot cards that normally only exist inside combat into a collectible resource you can carry into your next fight.
+
+FEATURES
+- Combat wins roll for a tarot drop with an adaptive pity system (starts at 15%, +10% on a miss, -20% on a drop, +12.5% on elites).
+- A dropped tarot appears as a card-form reward. Click it to store it in your satchel.
+- The satchel holds 2 tarots, follows you for the whole run and starts empty each run.
+- Outside combat only: click a satchel slot to Use or Discard.
+- Using a tarot consumes it and adds it to your draw pile at the start of your next combat.
+- One-shot: after that combat ends, the tarot is removed from your deck whether you played it or not.
+
+SCOPE
+- All characters. No ascension changes.
+- Uses the game's existing 22-card tarot pool; adds no new cards.
+
+INSTALL
+Drop the mod folder into the game's mods/ directory and launch from Steam.
+This mod changes gameplay: it uses modded saves, and every player needs it installed for multiplayer.
+
+KNOWN LIMITATIONS
+- Claiming a reward while the satchel is full is refused (the reward stays; discard a tarot and claim again). No replace-picker popup yet.
+- Multiplayer: satchel contents are tracked locally per player and are not synced.

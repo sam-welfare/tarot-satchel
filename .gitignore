@@ -1,0 +1,28 @@
+# Build outputs
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Mod build artifact (shipped via Releases, deployed locally by scripts/deploy.ps1)
+TarotSatchel/bin/
+TarotSatchel/obj/
+
+# Temporary artifacts: screenshots, probes, one-off exports (see AGENTS.md section 3)
+temp/
+
+# Local analysis tooling, not part of the mod
+meta_dump/
+api_dump/
+pck_dump/
+parse_pck.py
+sim_pity.py
+
+# Local game install / reference paths
+.env
+*.local
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
