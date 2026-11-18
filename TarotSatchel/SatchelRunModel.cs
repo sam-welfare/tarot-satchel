@@ -699,7 +699,7 @@ public sealed class SatchelRunModel : RunModel
     private static CardModel PickTarot(List<CardModel> pool, RunState runState, string input)
     {
         if (pool == null || pool.Count == 0) return null;
-        int idx = (int)(StableHash(input) % (uint)pool.Count);
+        int idx = (int)(StableHash(input) % (ulong)pool.Count);
         return idx >= 0 && idx < pool.Count ? pool[idx] : null;
     }
 
@@ -708,21 +708,32 @@ public sealed class SatchelRunModel : RunModel
         try { return run?.Rng?.StringSeed ?? ""; } catch { return ""; }
     }
 
-    /// <summary>Stable hash (FNV-1a 32-bit) for the deterministic stream based on run seed + room key.</summary>
-    private static uint StableHash(string input)
+    /// <summary>
+    /// Deterministic hash for the drop stream (run seed + room key): FNV-1a 64-bit followed by the
+    /// SplitMix64 finalizer. The finalizer is what makes near-identical keys (0:6 vs 0:7) avalanche;
+    /// plain FNV-1a-32 clustered their outputs, which made the drop roll almost non-random per act.
+    /// </summary>
+    private static ulong StableHash(string input)
     {
-        uint hash = 2166136261;
-        if (string.IsNullOrEmpty(input)) return hash;
-        foreach (char c in input)
+        ulong hash = 14695981039346656037UL;
+        if (!string.IsNullOrEmpty(input))
         {
-            hash ^= c;
-            hash *= 16777619;
+            foreach (char c in input)
+            {
+                hash ^= c;
+                hash *= 1099511628211UL;
+            }
         }
+        hash ^= hash >> 30;
+        hash *= 0xbf58476d1ce4e5b9UL;
+        hash ^= hash >> 27;
+        hash *= 0x94d049bb133111ebUL;
+        hash ^= hash >> 31;
         return hash;
     }
 
-    /// <summary>Deterministic uniform value in [0,1) derived from a string.</summary>
-    private static double Hash01(string input) => StableHash(input) / 4294967296.0;
+    /// <summary>Deterministic uniform value in [0,1) from the high 53 bits (exact double mantissa).</summary>
+    private static double Hash01(string input) => (StableHash(input) >> 11) / 9007199254740992.0;
 
     public override bool TryModifyRewards(Player player, List<Reward> rewards, AbstractRoom room)
     {
