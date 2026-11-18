@@ -38,6 +38,24 @@ public sealed class SatchelRunModel : RunModel
         try
         {
             var checkpointRoom = serializable?.PreFinishedRoom;
+            // The first ToSave after a load re-saves the snapshot we restored from disk. Consume the
+            // flag on that call even when it carries no room (null-room saves arrive first for event
+            // rooms), otherwise the next genuine checkpoint (e.g. taking the Ancient relic) is swallowed.
+            if (_ignoreNextSnapshot)
+            {
+                _ignoreNextSnapshot = false;
+                if (checkpointRoom != null)
+                {
+                    string adopted = CheckpointIdentity(checkpointRoom);
+                    _lastCheckpointIdentity = adopted;
+                    ModEntry.Log.Info($"[store] load-boundary save adopted without writing: {adopted}", 1);
+                }
+                else
+                {
+                    ModEntry.Log.Info("[store] load-boundary save adopted (no pre-finished room)", 1);
+                }
+                return;
+            }
             if (checkpointRoom == null)
             {
                 // Treasure/shop/rest-site rooms have no pre-finished serialization, and the map-screen
@@ -50,14 +68,6 @@ public sealed class SatchelRunModel : RunModel
             if (_quitting)
             {
                 ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
-                return;
-            }
-            if (_ignoreNextSnapshot)
-            {
-                // The first save after a load re-saves the snapshot we just restored from disk.
-                _ignoreNextSnapshot = false;
-                _lastCheckpointIdentity = identity;
-                ModEntry.Log.Info($"[store] load-boundary save adopted without writing: {identity}", 1);
                 return;
             }
             if (identity == _lastCheckpointIdentity)
