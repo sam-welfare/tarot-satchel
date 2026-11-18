@@ -1,10 +1,10 @@
 # Initialize the local git repository for the Tarot Satchel mod.
 # Run from the repository root:
-#   pwsh -File scripts/git-setup.ps1 -UserEmail "sam-wealth@users.noreply.github.com"
-#   pwsh -File scripts/git-setup.ps1 -UserEmail "..." -RemoteUrl "git@github.com:sam-wealth/tarot-satchel.git"
+#   pwsh -File scripts/git-setup.ps1 -UserEmail "sam-welfare@users.noreply.github.com"
+#   pwsh -File scripts/git-setup.ps1 -UserEmail "..." -RemoteUrl "git@github.com:sam-welfare/tarot-satchel.git"
 param(
-    [string]$UserName = "sam-wealth",
-    [string]$UserEmail = "sam-wealth@users.noreply.github.com",
+    [string]$UserName = "sam-welfare",
+    [string]$UserEmail = "sam-welfare@users.noreply.github.com",
     [string]$RemoteUrl = ""
 )
 
@@ -48,7 +48,7 @@ if ($RemoteUrl) {
     Write-Host "next: git push -u origin main" -ForegroundColor Cyan
 } else {
     Write-Host "next steps (create an empty GitHub repo first):" -ForegroundColor Cyan
-    Write-Host "  git remote add origin git@github.com:sam-wealth/tarot-satchel.git"
+    Write-Host "  git remote add origin git@github.com:sam-welfare/tarot-satchel.git"
     Write-Host "  git branch -M main"
     Write-Host "  git push -u origin main"
 }

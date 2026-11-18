@@ -30,9 +30,13 @@
 ## 开发
 
 - 纯 C# 类库，目标框架 `net10.0`，引用游戏自带的 `GodotSharp.dll` 与 `sts2.dll`（构建时不需要安装 Godot 编辑器）。
-- 入口：`[ModInitializer]` + `ModHelper.SubscribeForRunStateHooks / SubscribeForCombatStateHooks`。
-- 掉落注入：`AbstractModel.TryModifyRewards`；战斗开始/结束：`BeforeCombatStart` / `AfterCombatEnd`；奖励类型：自定义 `Reward` 子类。
-- 塔罗牌池：运行时 `MegaCrit.Sts2.Core.Entities.Cards.TarotCards.All`。
+- 入口：`[ModInitializer]` + `ModHelper.SubscribeForRunStateHooks`；run 模型为 `SatchelRunModel : RunModel`。
+- 奖励：`TarotCardReward : SpecialCardReward`；掉落预掷与检查点写盘见 `官方化改造清单.md`。
+- 注入：`BeforeCombatStart` / `AfterRoomEntered` 洗牌前同步加到抽牌堆（随机位置），`BeforeHandDraw` await 官方预览动画。
+- 存档：只在官方检查点推进时写（`RunManager.ToSave` 的 `PreFinishedRoom` 身份）。
+- 状态文件：`%APPDATA%/SlayTheSpire2/TarotSatchel/<种子>.json`。
+- 文档：`AGENTS.md`（规则与官方蓝图）、`官方化改造清单.md`（当前实现与待办）。
+
 
 ### 构建
 
