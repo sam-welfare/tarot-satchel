@@ -30,6 +30,7 @@ public static class SatchelBelt
     private static NinePatchRect _errorBgSource;
     private static NinePatchRect _errorBg;
     private static Control _floorAnchor;
+    private static int _capacity = SatchelStore.DefaultCapacity;
     private static Vector2 _slotSize = new(60, 60);
     private static Vector2 _fixedPanelSize = new(159, 71);
     private static Vector2 _fixedPanelPos = new(0, 4);
@@ -121,6 +122,9 @@ public static class SatchelBelt
         Control floorIcon = null;
         try { floorIcon = topBar.FloorIcon as Control; } catch { }
 
+        // Capacity is dynamic: future relics can raise it, so layout is computed from it.
+        _capacity = CurrentCapacity();
+
         // Official slot geometry.
         Vector2 slotSize = new(60, 60);
         List<Vector2> offsets = new();
@@ -130,14 +134,14 @@ public static class SatchelBelt
             if (holders != null && holders.Count > 0)
             {
                 slotSize = holders[0].Size;
-                foreach (var h in holders.Take(SatchelStore.MaxSlots)) offsets.Add(h.Position);
+                foreach (var h in holders.Take(_capacity)) offsets.Add(h.Position);
             }
         }
         catch { }
         if (offsets.Count == 0)
         {
             float spacing = slotSize.X + 6;
-            for (int i = 0; i < SatchelStore.MaxSlots; i++) offsets.Add(new Vector2(6 + i * spacing, 6));
+            for (int i = 0; i < _capacity; i++) offsets.Add(new Vector2(6 + i * spacing, 6));
         }
 
         _cardIcon ??= LoadCardIcon();
@@ -196,7 +200,7 @@ public static class SatchelBelt
             _root.AddChild(_errorBg);
         }
 
-        for (int i = 0; i < SatchelStore.MaxSlots; i++)
+        for (int i = 0; i < _capacity; i++)
         {
             int slotIndex = i;
             var slot = new Control
@@ -231,7 +235,7 @@ public static class SatchelBelt
         float leftPad = offsets.Count > 0 ? offsets[0].X : 6f;
         float topPad = offsets.Count > 0 ? offsets[0].Y : 6f;
         float gap = offsets.Count > 1 ? Mathf.Max(0f, offsets[1].X - offsets[0].X - slotSize.X) : 2f;
-        float fixedWidth = leftPad * 2f + slotSize.X * SatchelStore.MaxSlots + gap * (SatchelStore.MaxSlots - 1);
+        float fixedWidth = leftPad * 2f + slotSize.X * _capacity + gap * (_capacity - 1);
         float fixedHeight = _bgSource != null && GodotObject.IsInstanceValid(_bgSource) && _bgSource.Size.Y > 0
             ? _bgSource.Size.Y
             : slotSize.Y + topPad * 2f;
@@ -402,14 +406,14 @@ public static class SatchelBelt
                     var potionsGlobal = _anchorPotion.GlobalPosition;
                     var holders = _anchorPotion.Holders;
                     if (holders != null)
-                        foreach (var h in holders.Take(SatchelStore.MaxSlots))
+                        foreach (var h in holders.Take(_capacity))
                             current.Add(h.GlobalPosition - potionsGlobal);
                 }
                 catch { }
             }
             if (current.Count == 0)
             {
-                for (int i = 0; i < SatchelStore.MaxSlots; i++)
+                for (int i = 0; i < _capacity; i++)
                     current.Add(new Vector2(18 + i * 62, 9));
             }
             // Mid-layout the top bar reports zeroed positions; fall back to the official 18/62 layout
@@ -420,7 +424,7 @@ public static class SatchelBelt
             if (badLayout)
             {
                 current.Clear();
-                for (int i = 0; i < SatchelStore.MaxSlots; i++)
+                for (int i = 0; i < _capacity; i++)
                     current.Add(new Vector2(18 + i * 62, 9));
             }
 
@@ -429,7 +433,7 @@ public static class SatchelBelt
             float leftPad = current[0].X;
             float topPad = current[0].Y;
             float gap = current.Count > 1 ? Mathf.Max(0f, current[1].X - current[0].X - _slotSize.X) : 2f;
-            float fixedWidth = leftPad * 2f + _slotSize.X * SatchelStore.MaxSlots + gap * (SatchelStore.MaxSlots - 1);
+            float fixedWidth = leftPad * 2f + _slotSize.X * _capacity + gap * (_capacity - 1);
             float fixedHeight = _bgSource != null && GodotObject.IsInstanceValid(_bgSource) && _bgSource.Size.Y > 0
                 ? _bgSource.Size.Y
                 : _slotSize.Y + topPad * 2f;
@@ -440,10 +444,12 @@ public static class SatchelBelt
             for (int i = 0; i < _slots.Count; i++)
             {
                 Vector2 off = i < current.Count ? current[i] : new Vector2(18 + i * 62, 9);
-                var mirrored = new Vector2(
-                    Mathf.Clamp(_fixedPanelSize.X - (off.X + _slotSize.X), 0f, Mathf.Max(0f, _fixedPanelSize.X - _slotSize.X)),
-                    off.Y);
-                if (_slots[i].Position != mirrored) _slots[i].Position = mirrored;
+                // Slots are laid out left-to-right inside the panel: slot 0 is the leftmost one, so
+                // "fill the leftmost empty slot" matches what the player sees. The panel itself is
+                // still mirrored/anchored to the top bar via _root.Position.
+                float x = leftPad + i * (_slotSize.X + gap);
+                var slotPos = new Vector2(x, off.Y);
+                if (_slots[i].Position != slotPos) _slots[i].Position = slotPos;
 
                 if (_slots[i].Size != _slotSize) _slots[i].Size = _slotSize;
                 var icon = _slotIcons[i];
@@ -484,6 +490,17 @@ public static class SatchelBelt
     private static void Rebuild()
     {
         if (_root == null || !GodotObject.IsInstanceValid(_root)) return;
+
+        // Capacity may grow (future slot relic); rebuild the layout when it changes.
+        int capacity = CurrentCapacity();
+        if (capacity != _capacity)
+        {
+            var tree = Engine.GetMainLoop() as SceneTree;
+            DestroyExisting(tree);
+            EnsureAttached();
+            if (_root == null || !GodotObject.IsInstanceValid(_root)) return;
+        }
+
         UpdateGeometry();
 
         var runState = Run();
@@ -496,19 +513,34 @@ public static class SatchelBelt
         for (int i = 0; i < _slotIcons.Count; i++)
         {
             var icon = _slotIcons[i];
-            bool filled = i < st.Slots.Count;
+            bool filled = i < st.Slots.Count && !string.IsNullOrEmpty(st.Slots[i]);
             var tint = filled ? Colors.White : new Color(0.42f, 0.45f, 0.5f, 0.85f);
             if (combat) tint = new Color(tint.R, tint.G, tint.B, Mathf.Min(tint.A, 0.5f));
             icon.Modulate = tint;
             _slots[i].MouseFilter = combat ? Control.MouseFilterEnum.Ignore : Control.MouseFilterEnum.Stop;
         }
 
-        string state = $"{string.Join("|", st.Slots)}/{(combat ? "c" : "m")}";
+        string state = $"{FormatSlots(st)}/{(combat ? "c" : "m")}";
         if (state != _lastRenderState)
         {
             _lastRenderState = state;
-            ModEntry.Log.Info($"[ui] render slots=[{string.Join("|", st.Slots)}] combat={combat} pity={st.Pity:F2}", 1);
+            ModEntry.Log.Info($"[ui] render slots=[{FormatSlots(st)}] combat={combat} pity={st.Pity:F2}", 1);
         }
+    }
+
+    private static string FormatSlots(PlayerSatchel st) =>
+        string.Join("|", st.Slots.Select(s => string.IsNullOrEmpty(s) ? "-" : s));
+
+    private static int CurrentCapacity()
+    {
+        try
+        {
+            var run = Run();
+            if (run != null && run.Players.Count > 0)
+                return Mathf.Max(1, SatchelStore.ForPlayer(run.Players[0]).Capacity);
+        }
+        catch { }
+        return SatchelStore.DefaultCapacity;
     }
 
     private static void OnSlotHover(int slotIndex, bool entered)
@@ -524,7 +556,7 @@ public static class SatchelBelt
                 try { NHoverTipSet.Remove(slot); } catch { }
                 return;
             }
-            if (slotIndex < st.Slots.Count)
+            if (slotIndex < st.Slots.Count && !string.IsNullOrEmpty(st.Slots[slotIndex]))
             {
                 var card = SatchelStore.ResolveCard(st.Slots[slotIndex]);
                 var tips = HoverTipFactory.FromCardWithCardHoverTips(card, card?.IsUpgraded ?? false);
@@ -549,7 +581,7 @@ public static class SatchelBelt
             return;
         }
         var st = SatchelStore.ForPlayer(runState.Players[0]);
-        if (slotIndex >= st.Slots.Count) return;
+        if (slotIndex >= st.Slots.Count || string.IsNullOrEmpty(st.Slots[slotIndex])) return; // empty slot: no popup
 
         var card = SatchelStore.ResolveCard(st.Slots[slotIndex]);
         string name = TarotNames.GetDisplayName(card);
@@ -615,8 +647,9 @@ public static class SatchelBelt
         var runState = Run();
         if (runState == null || runState.Players.Count == 0) return false;
         var st = SatchelStore.ForPlayer(runState.Players[0]);
-        if (st.Slots.Count == 0) return false;
-        return ModEntry.Model.UseSlot(runState.Players[0], runState, 0);
+        int slot = FirstUsedSlot(st);
+        if (slot < 0) return false;
+        return ModEntry.Model.UseSlot(runState.Players[0], runState, slot);
     }
 
     public static bool TestDiscardFirstSlot()
@@ -624,8 +657,17 @@ public static class SatchelBelt
         var runState = Run();
         if (runState == null || runState.Players.Count == 0) return false;
         var st = SatchelStore.ForPlayer(runState.Players[0]);
-        if (st.Slots.Count == 0) return false;
-        return ModEntry.Model.DiscardSlot(runState.Players[0], 0);
+        int slot = FirstUsedSlot(st);
+        if (slot < 0) return false;
+        return ModEntry.Model.DiscardSlot(runState.Players[0], slot);
+    }
+
+    private static int FirstUsedSlot(PlayerSatchel st)
+    {
+        SatchelStore.NormalizeSlots(st);
+        for (int i = 0; i < st.Slots.Count; i++)
+            if (!string.IsNullOrEmpty(st.Slots[i])) return i;
+        return -1;
     }
 }
 

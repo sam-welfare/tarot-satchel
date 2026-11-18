@@ -184,7 +184,7 @@ public static class SatchelPoller
                             queuedInPile = pile.Cards.Count(c => st.Queued.Contains(c.Id.ToString()));
                         }
                         catch { }
-                        ModEntry.Log.Info($"[combat] entered {_loggedCombatRoom?.RoomType}: tarotPool={poolCount} slots=[{string.Join("|", st.Slots)}] queued=[{string.Join("|", st.Queued)}] queuedInDrawPile={queuedInPile} pity={st.Pity:F2}", 1);
+                        ModEntry.Log.Info($"[combat] entered {_loggedCombatRoom?.RoomType}: tarotPool={poolCount} slots=[{string.Join("|", st.Slots.Select(s => s ?? "-"))}] queued=[{string.Join("|", st.Queued)}] queuedInDrawPile={queuedInPile} pity={st.Pity:F2}", 1);
                     }
                 }
             }
