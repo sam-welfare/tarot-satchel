@@ -70,6 +70,29 @@ public sealed class SatchelRunModel : RunModel
                 ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
                 return;
             }
+
+            var run = ModEntry.Model?.CurrentRun;
+            if (run == null) return;
+
+            // Event rooms (Ancient included) save at their own moments -- entry plus the effects that
+            // commit the event (taking a relic, choosing a card reward, ...). Those saves may keep the
+            // same identity, so identity comparison must not filter them; every save outside the quit
+            // and load boundaries is a genuine checkpoint for the room we are currently in.
+            bool inEventRoom = false;
+            try { inEventRoom = run.CurrentRoom is EventRoom; } catch { }
+            if (inEventRoom)
+            {
+                _lastCheckpointIdentity = identity;
+                PreRollRewardAtSavePoint(run, room);
+                foreach (var player in run.Players)
+                {
+                    try { SatchelStore.ForPlayer(player).LastCheckpoint = identity; } catch { }
+                }
+                SatchelStore.Save();
+                ModEntry.Log.Info($"[store] event-room save recorded ({identity}): {SatchelStore.SnapshotSummary()}", 1);
+                return;
+            }
+
             if (identity == _lastCheckpointIdentity)
             {
                 ModEntry.Log.Info($"[store] checkpoint unchanged; skipped: {identity}", 1);
@@ -77,8 +100,6 @@ public sealed class SatchelRunModel : RunModel
             }
             _lastCheckpointIdentity = identity;
 
-            var run = ModEntry.Model?.CurrentRun;
-            if (run == null) return;
             PreRollRewardAtSavePoint(run, room);
             foreach (var player in run.Players)
             {
