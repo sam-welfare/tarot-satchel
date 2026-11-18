@@ -444,10 +444,12 @@ public static class SatchelBelt
             for (int i = 0; i < _slots.Count; i++)
             {
                 Vector2 off = i < current.Count ? current[i] : new Vector2(18 + i * 62, 9);
-                var mirrored = new Vector2(
-                    Mathf.Clamp(_fixedPanelSize.X - (off.X + _slotSize.X), 0f, Mathf.Max(0f, _fixedPanelSize.X - _slotSize.X)),
-                    off.Y);
-                if (_slots[i].Position != mirrored) _slots[i].Position = mirrored;
+                // Slots are laid out left-to-right inside the panel: slot 0 is the leftmost one, so
+                // "fill the leftmost empty slot" matches what the player sees. The panel itself is
+                // still mirrored/anchored to the top bar via _root.Position.
+                float x = leftPad + i * (_slotSize.X + gap);
+                var slotPos = new Vector2(x, off.Y);
+                if (_slots[i].Position != slotPos) _slots[i].Position = slotPos;
 
                 if (_slots[i].Size != _slotSize) _slots[i].Size = _slotSize;
                 var icon = _slotIcons[i];
