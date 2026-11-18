@@ -40,10 +40,12 @@
 | 特殊：跨层回滚 | 打完上层 Boss、进入下一层但**还没进入「先古之民」事件**时，保存并退出会回到**上层 Boss 奖励界面**（检查点仍是 Boss 房间）；此时不能把「房间 key 变化」当成检查点推进 | 实测日志 `1:17 advanced / 3375 Creating NCombatRoom mode=FinishedCombat CEREMONIAL_BEAST_BOSS` |
 | 特殊：事件选项触发战斗 | 事件里选择「进入战斗」会把战斗房压入房间栈（`BaseRoom`=事件房、`CurrentRoom`=战斗房），**这场战斗不产生检查点**；战斗结束/事件状态保存都不会推进官方检查点，可 SL 回选项界面 | `RunState.BaseRoom` 官方文档 + 实测 |
 | 特殊：宝箱房/商店/火堆（空 PreFinishedRoom） | 这三类房间不实现 `ToSerializable`，`ToSave` 的 `PreFinishedRoom` 为 null；它们的官方检查点就是**房间入口**。因此在 `AfterRoomEntered` 里对 `TreasureRoom`/`MerchantRoom`/`RestSiteRoom` **立即写盘**；`ToSave` 遇到 `PreFinishedRoom == null` 一律不写（地图界面同样不写，地图结束后的保存不推进检查点） | `SatchelRunModel.AfterRoomEntered` + 实测日志 |
+| 特殊：事件房间的写盘时机 | 事件房间（含先古之民）在 `AfterRoomEntered` 入口写一次；之后**只有 `PreFinishedRoom.IsPreFinished=True` 的存档**才算检查点（先古之民「拿遗物生效/选牌完成」属于这种）；`False` 的对话/战斗过程存档一律跳过；「保存并退出」的重复保存由暂停菜单补丁标记后跳过 | `SatchelRunModel.OnOfficialSnapshot` + 实测日志 |
 | 特殊：事件战斗不出塔罗（当前取舍） | 事件选项触发的战斗**有**官方卡牌奖励，但它不产生检查点，无法把预掷结果固定进存档；当前选择「事件战斗不生成塔罗」（`TryModifyRewards` 找不到预掷结果就不加），以后若支持需引入 `BeforeCombatRewardOffered` 插入 + 稳定战斗 key | 用户确认的设计取舍 |
-| 特殊：先古之民房间 SL | 先古之民（`EVENT.NEOW/OROBAS/PAEL`）只有两次有效存档：**进入房间**、**拿遗物生效**。实现：`AfterRoomEntered` 对 `EventRoom` 入口写盘；之后按 `PreFinishedRoom` 身份变化写（覆盖不同遗物/不同时机）；「保存并退出」触发的重复保存一律不写（暂停菜单 `OnSaveAndQuitButtonPressed` 标记退出流程）；读档后首次 ToSave 视为边界跳过 | `SatchelRunModel.BeginQuit/OnOfficialSnapshot` + `PersistencePatch` |
+| 特殊：先古之民房间 SL | 先古之民（`EVENT.NEOW/OROBAS/PAEL` 等）只有两次有效存档：**进入房间**、**拿遗物生效**（不同遗物的存档时机不同，例如奖励选牌要选完才存）。实现：`AfterRoomEntered` 对 `EventRoom` 入口写盘；之后按 `IsPreFinished=True` 的事件存档写（不依赖遗物状态）；「保存并退出」的重复保存不写（暂停菜单 `OnSaveAndQuitButtonPressed` 标记退出流程）；读档后首次 ToSave 视为边界跳过 | `SatchelRunModel.BeginQuit/OnOfficialSnapshot` + `PersistencePatch` |
 | 特殊：退出的重复保存 | 「保存并退出」是给「继续」存进度，内容仍是同一检查点，不是新检查点；退出流程内的 ToSave 不写盘 | 实测日志 + 暂停菜单补丁 |
-| mod 状态写盘规则 | 只在官方 `ToSave` 产出的 `PreFinishedRoom` 身份（RoomType/EncounterId/EventId/IsPreFinished/ParentEventId/ShouldResumeParentEvent/EncounterState）变化时写；身份不变（含保存并退出、跨层、事件战斗）一律跳过；身份随状态文件持久化，读档后自动跳过首次 ToSave | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch` |
+| 掉落随机源（重要） | 塔罗掉落**不消耗官方 RNG**：`roll = Hash01(seed + "|roll|" + act:floor)`，`chance = clamp(Pity + 精英?0.125:0)`，`Pity` 初始 0.15、掉落 −0.20、未掉 +0.10；选卡 `StableHash(seed+"|card|"+key) % 22`。哈希为 FNV-1a 64 + SplitMix64 终混（必须带终混，否则相邻房间 key 输出聚集）。原因：官方 RNG 状态在 `ToSave` 内部先序列化，在 postfix 里消耗会导致读档后下一场抽到同一值 | `SatchelRunModel.PreRollRewardAtSavePoint/Hash01` |
+| mod 状态写盘规则 | 只在官方检查点推进时写：`ToSave` 的 `PreFinishedRoom` 身份变化（战斗/普通房间）、或事件房间入口 + `IsPreFinished=True` 的事件存档；退出流程、读档边界、未完成事件存档一律跳过；身份随状态文件持久化（`LastCheckpoint`），读档后首次 ToSave 自动跳过 | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch`（共 3 个补丁：Reward.FromSerializable、RunManager.ToSave、NPauseMenu.OnSaveAndQuitButtonPressed） |
 
 ## 3. 临时文件规则
 
