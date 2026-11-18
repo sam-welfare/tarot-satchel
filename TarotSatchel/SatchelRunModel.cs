@@ -82,6 +82,17 @@ public sealed class SatchelRunModel : RunModel
             try { inEventRoom = run.CurrentRoom is EventRoom; } catch { }
             if (inEventRoom)
             {
+                // Event rooms save several times (dialogue pages, combat aftermath). Only the save that
+                // carries a finished room (IsPreFinished=True) is a real checkpoint -- e.g. taking the
+                // Ancient relic after its effect resolves. Unfinished saves must not commit in-room
+                // actions, otherwise event-combat save & load stops matching vanilla.
+                bool finished = false;
+                try { finished = checkpointRoom.IsPreFinished; } catch { }
+                if (!finished)
+                {
+                    ModEntry.Log.Info($"[store] event-room save (unfinished); not a checkpoint, skipped: {identity}", 1);
+                    return;
+                }
                 _lastCheckpointIdentity = identity;
                 PreRollRewardAtSavePoint(run, room);
                 foreach (var player in run.Players)
@@ -89,7 +100,7 @@ public sealed class SatchelRunModel : RunModel
                     try { SatchelStore.ForPlayer(player).LastCheckpoint = identity; } catch { }
                 }
                 SatchelStore.Save();
-                ModEntry.Log.Info($"[store] event-room save recorded ({identity}): {SatchelStore.SnapshotSummary()}", 1);
+                ModEntry.Log.Info($"[store] event-room checkpoint recorded ({identity}): {SatchelStore.SnapshotSummary()}", 1);
                 return;
             }
 
