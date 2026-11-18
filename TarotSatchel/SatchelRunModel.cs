@@ -38,6 +38,24 @@ public sealed class SatchelRunModel : RunModel
         try
         {
             var checkpointRoom = serializable?.PreFinishedRoom;
+            // The first ToSave after a load re-saves the snapshot we restored from disk. Consume the
+            // flag on that call even when it carries no room (null-room saves arrive first for event
+            // rooms), otherwise the next genuine checkpoint (e.g. taking the Ancient relic) is swallowed.
+            if (_ignoreNextSnapshot)
+            {
+                _ignoreNextSnapshot = false;
+                if (checkpointRoom != null)
+                {
+                    string adopted = CheckpointIdentity(checkpointRoom);
+                    _lastCheckpointIdentity = adopted;
+                    ModEntry.Log.Info($"[store] load-boundary save adopted without writing: {adopted}", 1);
+                }
+                else
+                {
+                    ModEntry.Log.Info("[store] load-boundary save adopted (no pre-finished room)", 1);
+                }
+                return;
+            }
             if (checkpointRoom == null)
             {
                 // Treasure/shop/rest-site rooms have no pre-finished serialization, and the map-screen
@@ -47,6 +65,45 @@ public sealed class SatchelRunModel : RunModel
                 return;
             }
             string identity = CheckpointIdentity(checkpointRoom);
+            if (_quitting)
+            {
+                ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
+                return;
+            }
+
+            var run = ModEntry.Model?.CurrentRun;
+            if (run == null) return;
+
+            // Event rooms (Ancient included) save at their own moments -- entry plus the effects that
+            // commit the event (taking a relic, choosing a card reward, ...). Those saves may keep the
+            // same identity, so identity comparison must not filter them; every save outside the quit
+            // and load boundaries is a genuine checkpoint for the room we are currently in.
+            bool inEventRoom = false;
+            try { inEventRoom = run.CurrentRoom is EventRoom; } catch { }
+            if (inEventRoom)
+            {
+                // Event rooms save several times (dialogue pages, combat aftermath). Only the save that
+                // carries a finished room (IsPreFinished=True) is a real checkpoint -- e.g. taking the
+                // Ancient relic after its effect resolves. Unfinished saves must not commit in-room
+                // actions, otherwise event-combat save & load stops matching vanilla.
+                bool finished = false;
+                try { finished = checkpointRoom.IsPreFinished; } catch { }
+                if (!finished)
+                {
+                    ModEntry.Log.Info($"[store] event-room save (unfinished); not a checkpoint, skipped: {identity}", 1);
+                    return;
+                }
+                _lastCheckpointIdentity = identity;
+                PreRollRewardAtSavePoint(run, room);
+                foreach (var player in run.Players)
+                {
+                    try { SatchelStore.ForPlayer(player).LastCheckpoint = identity; } catch { }
+                }
+                SatchelStore.Save();
+                ModEntry.Log.Info($"[store] event-room checkpoint recorded ({identity}): {SatchelStore.SnapshotSummary()}", 1);
+                return;
+            }
+
             if (identity == _lastCheckpointIdentity)
             {
                 ModEntry.Log.Info($"[store] checkpoint unchanged; skipped: {identity}", 1);
@@ -54,8 +111,6 @@ public sealed class SatchelRunModel : RunModel
             }
             _lastCheckpointIdentity = identity;
 
-            var run = ModEntry.Model?.CurrentRun;
-            if (run == null) return;
             PreRollRewardAtSavePoint(run, room);
             foreach (var player in run.Players)
             {
@@ -71,6 +126,19 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private static string _lastCheckpointIdentity;
+    private static bool _quitting;
+    private static bool _ignoreNextSnapshot;
+
+    /// <summary>
+    /// Called from the official pause-menu "save &amp; quit" handler. The re-save that follows when
+    /// returning to the main menu must not persist in-room actions (vanilla rolls them back).
+    /// </summary>
+    public static void BeginQuit()
+    {
+        if (_quitting) return;
+        _quitting = true;
+        ModEntry.Log.Info("[store] save-and-quit detected; no mod state will be written during the quit", 1);
+    }
 
     /// <summary>Identity of the official checkpoint room (all SerializableRoom state fields).</summary>
     private static string CheckpointIdentity(MegaCrit.Sts2.Core.Saves.Runs.SerializableRoom room)
@@ -91,7 +159,6 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private readonly HashSet<CombatRoom> _injectedRooms = new();
-    private static readonly Dictionary<string, int> _injectedThisPass = new();
 
     public override bool ShouldReceiveCombatHooks => true;
 
@@ -139,6 +206,8 @@ public sealed class SatchelRunModel : RunModel
             // Adopt the checkpoint identity that was persisted with the loaded state, so the load-time
             // ToSave (which re-saves the same checkpoint) is skipped and no reward is pre-rolled twice.
             _lastCheckpointIdentity = null;
+            _quitting = false;
+            _ignoreNextSnapshot = true;
             _injectedRooms.Clear();
             try
             {
@@ -216,13 +285,12 @@ public sealed class SatchelRunModel : RunModel
                 }
 
                 var modelId = ModelId.Deserialize(queuedId);
-                // Duplicate tarots are legitimate (you can use two copies of the same card), so the
-                // injection decision is count-based: queued copies of this id vs copies already in
-                // the combat piles plus copies injected in this pass.
+                // Duplicate tarots are legitimate (two copies of the same card can be used), so the
+                // decision is count-based: queued copies of this id vs copies already in the piles.
+                // The insert below is synchronous, so this count is accurate for later iterations too.
                 int queuedSameId = st.Queued.Count(x => x == queuedId);
                 int inPiles = CountInCombatPiles(player, modelId);
-                int injectedSameId = _injectedThisPass.TryGetValue(queuedId, out var n) ? n : 0;
-                if (inPiles + injectedSameId >= queuedSameId)
+                if (inPiles >= queuedSameId)
                 {
                     st.QueuedCombatKeys[i] = key;
                     SatchelStore.MarkDirty();
@@ -252,7 +320,6 @@ public sealed class SatchelRunModel : RunModel
                     pile.AddInternal(instance, index, true);
                     st.QueuedCombatKeys[i] = key;
                     SatchelStore.MarkDirty();
-                    _injectedThisPass[queuedId] = injectedSameId + 1;
                     _pendingPreviewCards.Add(instance);
                     ModEntry.Log.Info($"[combat] pre-shuffle injected {queuedId} into draw pile at {index}/{count} (pile={pile.Cards?.Count})", 1);
                 }
@@ -261,7 +328,6 @@ public sealed class SatchelRunModel : RunModel
                     ModEntry.Log.Warn($"[combat] pre-shuffle insert failed for {queuedId}: {e.Message}", 1);
                 }
             }
-            _injectedThisPass.Clear();
         }
         SatchelBelt.RefreshAll();
     }
@@ -279,15 +345,25 @@ public sealed class SatchelRunModel : RunModel
             ModEntry.Log.Warn($"[combat] pre-shuffle retry failed: {e.Message}", 1);
         }
         SatchelBelt.RefreshAll();
-        // Treasure/shop/rest-site rooms have no pre-finished serialization, but entering them IS the
-        // official checkpoint for that room. Snapshot here so rewards claimed in the previous room are
-        // kept and in-room actions still roll back. Map/combat/event rooms are handled elsewhere.
-        if (room is TreasureRoom || room is MerchantRoom || room is RestSiteRoom)
+        // Treasure/shop/rest-site rooms have no pre-finished serialization, and the Ancient/event
+        // rooms only serialize after the event progresses. Their real checkpoint is the room entry, so
+        // snapshot it here; in-room actions still roll back until the next checkpoint (e.g. taking the
+        // Ancient relic) writes again.
+        if (room is TreasureRoom || room is MerchantRoom || room is RestSiteRoom || room is EventRoom)
         {
             try
             {
+                string entryIdentity = $"entry:{RoomKey(CurrentRun)}";
+                var run = CurrentRun;
+                if (run != null)
+                {
+                    foreach (var player in run.Players)
+                    {
+                        try { SatchelStore.ForPlayer(player).LastCheckpoint = entryIdentity; } catch { }
+                    }
+                }
                 SatchelStore.Save();
-                ModEntry.Log.Info($"[store] room-entry checkpoint ({room.RoomType}): {SatchelStore.SnapshotSummary()}", 1);
+                ModEntry.Log.Info($"[store] room-entry checkpoint ({room.RoomType}) {entryIdentity}: {SatchelStore.SnapshotSummary()}", 1);
             }
             catch (Exception e)
             {
@@ -579,17 +655,15 @@ public sealed class SatchelRunModel : RunModel
 
                 double chance;
                 double roll;
-                var upFront = run.Rng?.UpFront;
-                if (upFront == null)
-                {
-                    // Deterministic rollback requires the official RNG; without it, do not roll at all
-                    // (a local Random() would make the saved reward different on every reload).
-                    ModEntry.Log.Warn("[reward] official RNG unavailable; skipping pre-roll", 1);
-                    continue;
-                }
                 try { chance = Math.Clamp(st.Pity + (elite ? EliteBonus : 0.0), 0.0, 1.0); }
                 catch { chance = 0.0; }
-                roll = upFront.NextDouble();
+                // Deterministic per (run seed, room): the official RNG state is serialized inside ToSave
+                // before this postfix runs, so consuming it here would repeat the same draw for the next
+                // combat after a reload. Hashing the seed and room key keeps the drop random per run,
+                // reproducible for the same room and independent of the official RNG sequence.
+                string seed = SeedOrEmpty(run);
+                string rollInput = $"{seed}|roll|{key}";
+                roll = Hash01(rollInput);
 
                 bool dropped = roll < chance;
                 st.Pity = Math.Clamp(st.Pity + (dropped ? -DropStep : MissStep), 0.0, 1.0);
@@ -599,7 +673,7 @@ public sealed class SatchelRunModel : RunModel
                 {
                     List<CardModel> pool = null;
                     try { pool = TarotCards.All; } catch (Exception e) { ModEntry.Log.Warn($"[reward] tarot pool unavailable: {e.Message}", 1); }
-                    var canonical = PickTarot(pool, run);
+                    var canonical = PickTarot(pool, run, $"{seed}|card|{key}");
                     if (canonical != null) st.PendingRewardId = canonical.Id.ToString();
                     ModEntry.Log.Info($"[reward] pre-rolled {combatRoom.RoomType} drop for {key}: {st.PendingRewardId} roll={roll:F3} chance={chance:F3} pityAfter={st.Pity:F2}", 1);
                 }
@@ -622,13 +696,44 @@ public sealed class SatchelRunModel : RunModel
         catch { return "err"; }
     }
 
-    private static CardModel PickTarot(List<CardModel> pool, RunState runState)
+    private static CardModel PickTarot(List<CardModel> pool, RunState runState, string input)
     {
-        var upFront = runState?.Rng?.UpFront;
-        if (pool == null || pool.Count == 0 || upFront == null) return null;
-        int idx = upFront.NextInt(pool.Count);
+        if (pool == null || pool.Count == 0) return null;
+        int idx = (int)(StableHash(input) % (ulong)pool.Count);
         return idx >= 0 && idx < pool.Count ? pool[idx] : null;
     }
+
+    private static string SeedOrEmpty(RunState run)
+    {
+        try { return run?.Rng?.StringSeed ?? ""; } catch { return ""; }
+    }
+
+    /// <summary>
+    /// Deterministic hash for the drop stream (run seed + room key): FNV-1a 64-bit followed by the
+    /// SplitMix64 finalizer. The finalizer is what makes near-identical keys (0:6 vs 0:7) avalanche;
+    /// plain FNV-1a-32 clustered their outputs, which made the drop roll almost non-random per act.
+    /// </summary>
+    private static ulong StableHash(string input)
+    {
+        ulong hash = 14695981039346656037UL;
+        if (!string.IsNullOrEmpty(input))
+        {
+            foreach (char c in input)
+            {
+                hash ^= c;
+                hash *= 1099511628211UL;
+            }
+        }
+        hash ^= hash >> 30;
+        hash *= 0xbf58476d1ce4e5b9UL;
+        hash ^= hash >> 27;
+        hash *= 0x94d049bb133111ebUL;
+        hash ^= hash >> 31;
+        return hash;
+    }
+
+    /// <summary>Deterministic uniform value in [0,1) from the high 53 bits (exact double mantissa).</summary>
+    private static double Hash01(string input) => (StableHash(input) >> 11) / 9007199254740992.0;
 
     public override bool TryModifyRewards(Player player, List<Reward> rewards, AbstractRoom room)
     {
