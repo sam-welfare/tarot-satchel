@@ -571,37 +571,44 @@ public sealed class SatchelRunModel : RunModel
     public bool UseSlot(Player player, RunState runState, int index)
     {
         var st = SatchelStore.ForPlayer(player);
+        SatchelStore.NormalizeSlots(st);
         if (index < 0 || index >= st.Slots.Count) return false;
         string id = st.Slots[index];
+        if (string.IsNullOrEmpty(id)) return false; // empty slot: nothing to use
         if (SatchelStore.ResolveCard(id) == null)
         {
-            ModEntry.Log.Warn($"[use] could not resolve tarot {id}; dropping slot", 1);
-            st.Slots.RemoveAt(index);
+            ModEntry.Log.Warn($"[use] could not resolve tarot {id}; clearing slot {index}", 1);
+            st.Slots[index] = null;
             SatchelStore.MarkDirty();
             return false;
         }
-        st.Slots.RemoveAt(index);
+        st.Slots[index] = null; // keep the hole: cards never shift between slots
         st.Queued.Add(id);
         while (st.QueuedCombatKeys.Count < st.Queued.Count) st.QueuedCombatKeys.Add(null);
         st.QueuedCombatKeys[st.Queued.Count - 1] = null;
         st.CombatSeenWhileQueued = false;
         SatchelStore.MarkDirty();
         SatchelBelt.RefreshAll();
-        ModEntry.Log.Info($"[use] tarot {id} queued for next combat; slots=[{string.Join("|", st.Slots)}] queued=[{string.Join("|", st.Queued)}] deck={player.Deck?.Cards?.Count}", 1);
+        ModEntry.Log.Info($"[use] tarot {id} from slot {index} queued for next combat; slots=[{FormatSlots(st)}] queued=[{string.Join("|", st.Queued)}] deck={player.Deck?.Cards?.Count}", 1);
         return true;
     }
 
     public bool DiscardSlot(Player player, int index)
     {
         var st = SatchelStore.ForPlayer(player);
+        SatchelStore.NormalizeSlots(st);
         if (index < 0 || index >= st.Slots.Count) return false;
         string id = st.Slots[index];
-        st.Slots.RemoveAt(index);
+        if (string.IsNullOrEmpty(id)) return false; // empty slot: nothing to discard
+        st.Slots[index] = null; // keep the hole
         SatchelStore.MarkDirty();
         SatchelBelt.RefreshAll();
-        ModEntry.Log.Info($"[discard] tarot {id} discarded; slots=[{string.Join("|", st.Slots)}]", 1);
+        ModEntry.Log.Info($"[discard] tarot {id} from slot {index} discarded; slots=[{FormatSlots(st)}]", 1);
         return true;
     }
+
+    private static string FormatSlots(PlayerSatchel st) =>
+        string.Join("|", st.Slots.Select(s => string.IsNullOrEmpty(s) ? "-" : s));
 
     /// <summary>
     /// Register the reward in the room's official extra-reward container, which the game serializes

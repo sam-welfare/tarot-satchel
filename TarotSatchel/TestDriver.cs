@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -379,7 +379,7 @@ public static class TestDriver
             if (previewTest && runState.Players.Count > 0)
             {
                 var st = SatchelStore.ForPlayer(runState.Players[0]);
-                if (st.Slots.Count > 0 && st.Queued.Count == 0)
+                if (SatchelStore.UsedSlots(st) > 0 && st.Queued.Count == 0)
                 {
                     bool used = SatchelBelt.TestUseFirstSlot();
                     Log($"preview test: used first slot -> {used}, queued=[{string.Join("|", st.Queued)}]");
@@ -679,7 +679,7 @@ public static class TestDriver
                 }
                 _claimedThisRoom = true;
                 var st = SatchelStore.ForPlayer(runState.Players[0]);
-                Log($"pressed {controls.Count} reward controls; belt=[{string.Join("|", st.Slots)}]");
+                Log($"pressed {controls.Count} reward controls; belt=[{string.Join("|", st.Slots.Select(s => s ?? "-"))}]");
             }
             else if (!_pressedProceed)
             {
@@ -700,7 +700,7 @@ public static class TestDriver
         var runState = ModEntry.Model?.CurrentRun;
         if (runState == null || runState.Players.Count == 0) return;
         var st = SatchelStore.ForPlayer(runState.Players[0]);
-        if (st.Slots.Count == 0 || st.Queued.Count > 0) return;
+        if (SatchelStore.UsedSlots(st) == 0 || st.Queued.Count > 0) return;
         bool used = SatchelBelt.TestUseFirstSlot();
         _usedFromBelt = true;
         Log($"auto use -> {used}, queued=[{string.Join("|", st.Queued)}]");

@@ -48,20 +48,21 @@ public sealed class TarotCardReward : SpecialCardReward
             var deckCard = player.Deck?.Cards?.FirstOrDefault(c => c.Id == _tarotId);
             if (deckCard != null && runState != null) runState.RemoveCard(deckCard);
 
-            if (st.Slots.Count >= SatchelStore.MaxSlots)
+            int slot = SatchelStore.FirstEmptySlot(st);
+            if (slot < 0)
             {
                 SatchelBelt.PlayFullFeedback();
                 ModEntry.Log.Info($"[reward] belt full; tarot {_tarotId} declined", 1);
                 return false;
             }
 
-            st.Slots.Add(_tarotId.ToString());
+            st.Slots[slot] = _tarotId.ToString();
             // Keep PendingRewardId/Key: the room's outcome stays fixed, so a later save point in the
             // same room must not roll a second time. PreRollRewardAtSavePoint clears it when the next
             // room is rolled.
             SatchelStore.MarkDirty();
             SatchelBelt.RefreshAll();
-            ModEntry.Log.Info($"[reward] claimed tarot {_tarotId}; slots=[{string.Join("|", st.Slots)}]", 1);
+            ModEntry.Log.Info($"[reward] claimed tarot {_tarotId} into slot {slot}; slots=[{string.Join("|", st.Slots.Select(s => s ?? "-"))}]", 1);
             return true;
         }
         catch (Exception e)

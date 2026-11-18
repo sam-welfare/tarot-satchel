@@ -14,7 +14,16 @@ namespace TarotSatchel;
 public sealed class PlayerSatchel
 {
     public double Pity { get; set; } = 0.15;
+
+    /// <summary>Slot capacity; grows when future relics add tarot slots (default 2).</summary>
+    public int Capacity { get; set; } = SatchelStore.DefaultCapacity;
+
+    /// <summary>
+    /// Fixed-length slot array: index = slot position, null = empty slot. Cards never shift between
+    /// slots; claiming fills the leftmost null and using/discarding clears that position.
+    /// </summary>
     public List<string> Slots { get; set; } = new();
+
     public List<string> Queued { get; set; } = new();
 
     /// <summary>
@@ -43,7 +52,9 @@ public sealed class PlayerSatchel
 
 public static class SatchelStore
 {
-    public const int MaxSlots = 2;
+    /// <summary>Default slot capacity; future relics may raise <see cref="PlayerSatchel.Capacity"/>.</summary>
+    public const int DefaultCapacity = 2;
+    public const int MaxSlots = DefaultCapacity; // legacy name, kept for older call sites
 
     private static readonly Dictionary<ulong, PlayerSatchel> _satchels = new();
     private static string _filePath;
@@ -70,8 +81,9 @@ public static class SatchelStore
                 if (data != null)
                     foreach (var kv in data)
                         if (ulong.TryParse(kv.Key, out var netId)) _satchels[netId] = kv.Value;
+                foreach (var st in _satchels.Values) NormalizeSlots(st);
                 var summary = string.Join("; ", _satchels.Select(kv =>
-                    $"{kv.Key}: slots=[{string.Join("|", kv.Value.Slots)}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
+                    $"{kv.Key}: cap={kv.Value.Capacity} slots=[{string.Join("|", kv.Value.Slots.Select(s => s ?? "-"))}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
                 ModEntry.Log.Info($"[store] loaded {_satchels.Count} satchel(s) for seed {seed} from {_filePath}: {summary}", 1);
             }
             catch (System.Exception e)
@@ -115,8 +127,43 @@ public static class SatchelStore
             st = new PlayerSatchel();
             _satchels[player.NetId] = st;
         }
+        NormalizeSlots(st);
         return st;
     }
+
+    /// <summary>
+    /// Normalize <see cref="PlayerSatchel.Slots"/> to a fixed-length array (index = slot position,
+    /// null = empty). Legacy saves stored a compact list (old capacity was fixed 2 and cards shifted);
+    /// those entries are kept left-aligned and missing slots are padded with null.
+    /// </summary>
+    public static void NormalizeSlots(PlayerSatchel st)
+    {
+        if (st == null) return;
+        if (st.Capacity < 1) st.Capacity = DefaultCapacity;
+        st.Slots ??= new List<string>();
+        if (st.Slots.Count > st.Capacity)
+            st.Slots.RemoveRange(st.Capacity, st.Slots.Count - st.Capacity);
+        while (st.Slots.Count < st.Capacity) st.Slots.Add(null);
+    }
+
+    /// <summary>Leftmost empty slot index, or -1 when the satchel is full.</summary>
+    public static int FirstEmptySlot(PlayerSatchel st)
+    {
+        NormalizeSlots(st);
+        for (int i = 0; i < st.Slots.Count; i++)
+            if (string.IsNullOrEmpty(st.Slots[i])) return i;
+        return -1;
+    }
+
+    /// <summary>Number of stored (non-empty) slots.</summary>
+    public static int UsedSlots(PlayerSatchel st)
+    {
+        if (st?.Slots == null) return 0;
+        return st.Slots.Count(s => !string.IsNullOrEmpty(s));
+    }
+
+    private static string FormatSlots(PlayerSatchel st) =>
+        string.Join("|", st.Slots.Select(s => string.IsNullOrEmpty(s) ? "-" : s));
 
     /// <summary>
     /// Mark state as changed. The file is only written when the game itself saves the run
@@ -140,7 +187,7 @@ public static class SatchelStore
             var data = _satchels.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
             File.WriteAllText(_filePath, JsonSerializer.Serialize(data, JsonOpts));
             var summary = string.Join("; ", _satchels.Select(kv =>
-                $"{kv.Key}: slots=[{string.Join("|", kv.Value.Slots)}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
+                $"{kv.Key}: cap={kv.Value.Capacity} slots=[{FormatSlots(kv.Value)}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
             ModEntry.Log.Info($"[store] wrote {Path.GetFileName(_filePath)}: {summary}", 1);
         }
         catch (System.Exception e)
@@ -155,7 +202,7 @@ public static class SatchelStore
         try
         {
             return string.Join("; ", _satchels.Select(kv =>
-                $"{kv.Key}: slots=[{string.Join("|", kv.Value.Slots)}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
+                $"{kv.Key}: cap={kv.Value.Capacity} slots=[{FormatSlots(kv.Value)}] queued=[{string.Join("|", kv.Value.Queued)}] pity={kv.Value.Pity:F2}"));
         }
         catch
         {
