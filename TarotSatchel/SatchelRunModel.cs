@@ -159,7 +159,6 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private readonly HashSet<CombatRoom> _injectedRooms = new();
-    private static readonly Dictionary<string, int> _injectedThisPass = new();
 
     public override bool ShouldReceiveCombatHooks => true;
 
@@ -286,13 +285,12 @@ public sealed class SatchelRunModel : RunModel
                 }
 
                 var modelId = ModelId.Deserialize(queuedId);
-                // Duplicate tarots are legitimate (you can use two copies of the same card), so the
-                // injection decision is count-based: queued copies of this id vs copies already in
-                // the combat piles plus copies injected in this pass.
+                // Duplicate tarots are legitimate (two copies of the same card can be used), so the
+                // decision is count-based: queued copies of this id vs copies already in the piles.
+                // The insert below is synchronous, so this count is accurate for later iterations too.
                 int queuedSameId = st.Queued.Count(x => x == queuedId);
                 int inPiles = CountInCombatPiles(player, modelId);
-                int injectedSameId = _injectedThisPass.TryGetValue(queuedId, out var n) ? n : 0;
-                if (inPiles + injectedSameId >= queuedSameId)
+                if (inPiles >= queuedSameId)
                 {
                     st.QueuedCombatKeys[i] = key;
                     SatchelStore.MarkDirty();
@@ -322,7 +320,6 @@ public sealed class SatchelRunModel : RunModel
                     pile.AddInternal(instance, index, true);
                     st.QueuedCombatKeys[i] = key;
                     SatchelStore.MarkDirty();
-                    _injectedThisPass[queuedId] = injectedSameId + 1;
                     _pendingPreviewCards.Add(instance);
                     ModEntry.Log.Info($"[combat] pre-shuffle injected {queuedId} into draw pile at {index}/{count} (pile={pile.Cards?.Count})", 1);
                 }
@@ -331,7 +328,6 @@ public sealed class SatchelRunModel : RunModel
                     ModEntry.Log.Warn($"[combat] pre-shuffle insert failed for {queuedId}: {e.Message}", 1);
                 }
             }
-            _injectedThisPass.Clear();
         }
         SatchelBelt.RefreshAll();
     }
@@ -669,7 +665,13 @@ public sealed class SatchelRunModel : RunModel
                 }
                 try { chance = Math.Clamp(st.Pity + (elite ? EliteBonus : 0.0), 0.0, 1.0); }
                 catch { chance = 0.0; }
-                roll = upFront.NextDouble();
+                // The RNG state is serialized inside ToSave, i.e. BEFORE this postfix consumes a draw.
+                // Reloading would therefore hand the same first draw to the NEXT combat's pre-roll and
+                // duplicate the drop. Mixing a stable per-room salt removes that collision while keeping
+                // the result deterministic for the same room.
+                uint salt = StableSalt(key);
+                double raw = upFront.NextDouble();
+                roll = (raw + (salt % 10000) / 10000.0) % 1.0;
 
                 bool dropped = roll < chance;
                 st.Pity = Math.Clamp(st.Pity + (dropped ? -DropStep : MissStep), 0.0, 1.0);
@@ -679,7 +681,7 @@ public sealed class SatchelRunModel : RunModel
                 {
                     List<CardModel> pool = null;
                     try { pool = TarotCards.All; } catch (Exception e) { ModEntry.Log.Warn($"[reward] tarot pool unavailable: {e.Message}", 1); }
-                    var canonical = PickTarot(pool, run);
+                    var canonical = PickTarot(pool, run, salt);
                     if (canonical != null) st.PendingRewardId = canonical.Id.ToString();
                     ModEntry.Log.Info($"[reward] pre-rolled {combatRoom.RoomType} drop for {key}: {st.PendingRewardId} roll={roll:F3} chance={chance:F3} pityAfter={st.Pity:F2}", 1);
                 }
@@ -702,12 +704,26 @@ public sealed class SatchelRunModel : RunModel
         catch { return "err"; }
     }
 
-    private static CardModel PickTarot(List<CardModel> pool, RunState runState)
+    private static CardModel PickTarot(List<CardModel> pool, RunState runState, uint salt)
     {
         var upFront = runState?.Rng?.UpFront;
         if (pool == null || pool.Count == 0 || upFront == null) return null;
-        int idx = upFront.NextInt(pool.Count);
+        int idx = (upFront.NextInt(pool.Count) + (int)(salt % (uint)pool.Count)) % pool.Count;
         return idx >= 0 && idx < pool.Count ? pool[idx] : null;
+    }
+
+    /// <summary>Stable per-room salt (FNV-1a) so pre-rolls differ between rooms even if the RNG
+    /// draw repeats after a reload (the RNG state is serialized before our postfix consumes it).</summary>
+    private static uint StableSalt(string key)
+    {
+        uint hash = 2166136261;
+        if (string.IsNullOrEmpty(key)) return hash;
+        foreach (char c in key)
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+        return hash;
     }
 
     public override bool TryModifyRewards(Player player, List<Reward> rewards, AbstractRoom room)
