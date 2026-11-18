@@ -122,10 +122,10 @@ public static class PersistencePatcher
             // "Save & quit" re-saves the same checkpoint when leaving to the main menu. Mark the quit
             // flow from the official pause-menu entry so that re-save never writes mod state; genuine
             // checkpoints (room entry, relic taken in the Ancient room, ...) happen outside it.
-            var saveAndQuit = typeof(MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu.NPauseMenu).GetMethod(
-                "OnSaveAndQuitButtonPressed",
-                BindingFlags.Public | BindingFlags.Instance, null,
-                new[] { typeof(MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton) }, null);
+            // Resolve by name only: the parameter type/visibility is an implementation detail.
+            var saveAndQuit = typeof(MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu.NPauseMenu)
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "OnSaveAndQuitButtonPressed");
             var onSaveAndQuit = typeof(PersistencePatcher).GetMethod("OnSaveAndQuit",
                 BindingFlags.NonPublic | BindingFlags.Static);
             if (saveAndQuit == null || onSaveAndQuit == null)
