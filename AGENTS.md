@@ -33,7 +33,7 @@
 | 加入牌堆的官方预览动画 | `CardCmd.Preview(card, time, CardPreviewStyle)`（「屏幕中央生成 NCard→飞向所在牌堆」），返回 TaskCompletionSource 可 await | `MegaCrit.Sts2.Core.Commands` + `sts2.xml` |
 | 抽手牌前的官方钩子（动画先于抽牌） | `AbstractModel.BeforeHandDraw(Player, PlayerChoiceContext, ICombatState)`，引擎 await 后才抽牌；`BlessedAntler` 即用此钩子 | `MegaCrit.Sts2.Core.Models` |
 | 药水栏底板 | `NPotionContainer` 子节点 `PotionBg`（NinePatchRect，`top_bar_char_backdrop.tres`） | 运行时探针 |
-| 塔罗栏位布局（重要） | belt 面板以 `NTopBar.FloorIcon` 为轴**镜像定位**（`mirroredLeft = 2*floorCenter.X - (potions.GlobalPosition.X + potions.Size.X)`），即放在药水栏的对侧；但**槽位在面板内必须从左到右排列**（索引 0 = 最左）。曾把槽位也按面板宽度镜像（`panelW - (x + slotW)`），导致「填最左空位」实际显示在最右；面板宽度按 `Capacity` 计算，不跟随药水容器尺寸 | `SatchelBelt.EnsureAttached/UpdateGeometry` + 实测 |
+| 塔罗栏位布局（重要） | belt 面板以 `NTopBar.FloorIcon` 为轴**镜像定位**（`mirroredLeft = 2*floorCenter.X - (potions.GlobalPosition.X + potions.Size.X)`），即放在药水栏的对侧；但**槽位在面板内必须从左到右排列**（索引 0 = 最左）。曾把槽位也按面板宽度镜像（`panelW - (x + slotW)`），导致「填最左空位」实际显示在最右；面板宽度按 `Capacity` 计算，不跟随药水容器尺寸。**容量上限固定为 3**（用户实测 3 格不遮挡，决定不再增长），`SatchelStore.MaxCapacity = 3` | `SatchelBelt.EnsureAttached/UpdateGeometry` + 实测 |
 | 药水满反馈 | `NPotionContainer.PlayAddFailedAnim()` / `PotionErrorBg` | `MegaCrit.Sts2.Core.Nodes.Potions` |
 | 卡牌悬浮提示 | `NHoverTipSet.CreateAndShow(Control, IEnumerable<IHoverTip>, HoverTipAlignment)` + `HoverTipFactory.FromCardWithCardHoverTips` | `MegaCrit.Sts2.Core.Nodes.HoverTips` |
 | 卡牌奖励行文案 | `LocString("gameplay_ui","COMBAT_REWARD_ADD_CARD")`；自定义描述 `SpecialCardReward.SetCustomDescriptionEncounterSource(ModelId)` | `MegaCrit.Sts2.Core.Rewards` |

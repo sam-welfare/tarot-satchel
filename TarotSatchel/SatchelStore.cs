@@ -54,6 +54,9 @@ public static class SatchelStore
 {
     /// <summary>Default slot capacity; future relics may raise <see cref="PlayerSatchel.Capacity"/>.</summary>
     public const int DefaultCapacity = 2;
+
+    /// <summary>Hard cap for the tarot slot capacity (user decision: never more than 3).</summary>
+    public const int MaxCapacity = 3;
     public const int MaxSlots = DefaultCapacity; // legacy name, kept for older call sites
 
     private static readonly Dictionary<ulong, PlayerSatchel> _satchels = new();
@@ -140,6 +143,15 @@ public static class SatchelStore
     {
         if (st == null) return;
         if (st.Capacity < 1) st.Capacity = DefaultCapacity;
+        st.Capacity = System.Math.Clamp(st.Capacity, 1, MaxCapacity);
+        // Test hook: TAROT_SATCHEL_SLOTS=<n> overrides capacity to preview the layout (1..MaxCapacity).
+        try
+        {
+            var overrideValue = System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_SLOTS");
+            if (int.TryParse(overrideValue, out int slots) && slots >= 1)
+                st.Capacity = System.Math.Clamp(slots, 1, MaxCapacity);
+        }
+        catch { }
         st.Slots ??= new List<string>();
         if (st.Slots.Count > st.Capacity)
             st.Slots.RemoveRange(st.Capacity, st.Slots.Count - st.Capacity);
