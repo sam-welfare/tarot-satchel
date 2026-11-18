@@ -119,6 +119,24 @@ public static class PersistencePatcher
                 _harmony.Patch(toSave, postfix: new HarmonyMethod(onToSave));
             }
 
+            // "Save & quit" re-saves the same checkpoint when leaving to the main menu. Mark the quit
+            // flow from the official pause-menu entry so that re-save never writes mod state; genuine
+            // checkpoints (room entry, relic taken in the Ancient room, ...) happen outside it.
+            var saveAndQuit = typeof(MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu.NPauseMenu).GetMethod(
+                "OnSaveAndQuitButtonPressed",
+                BindingFlags.Public | BindingFlags.Instance, null,
+                new[] { typeof(MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton) }, null);
+            var onSaveAndQuit = typeof(PersistencePatcher).GetMethod("OnSaveAndQuit",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            if (saveAndQuit == null || onSaveAndQuit == null)
+            {
+                ModEntry.Log.Warn("[persist] save-and-quit patch target not found", 1);
+            }
+            else
+            {
+                _harmony.Patch(saveAndQuit, postfix: new HarmonyMethod(onSaveAndQuit));
+            }
+
             ModEntry.Log.Info("[persist] harmony patches installed", 1);
         }
         catch (Exception e)
@@ -133,5 +151,10 @@ public static class PersistencePatcher
         MegaCrit.Sts2.Core.Saves.SerializableRun __result)
     {
         SatchelRunModel.OnOfficialSnapshot(preFinishedRoom, __result);
+    }
+
+    private static void OnSaveAndQuit()
+    {
+        SatchelRunModel.BeginQuit();
     }
 }

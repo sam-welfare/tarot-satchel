@@ -41,6 +41,8 @@
 | 特殊：事件选项触发战斗 | 事件里选择「进入战斗」会把战斗房压入房间栈（`BaseRoom`=事件房、`CurrentRoom`=战斗房），**这场战斗不产生检查点**；战斗结束/事件状态保存都不会推进官方检查点，可 SL 回选项界面 | `RunState.BaseRoom` 官方文档 + 实测 |
 | 特殊：宝箱房/商店/火堆（空 PreFinishedRoom） | 这三类房间不实现 `ToSerializable`，`ToSave` 的 `PreFinishedRoom` 为 null；它们的官方检查点就是**房间入口**。因此在 `AfterRoomEntered` 里对 `TreasureRoom`/`MerchantRoom`/`RestSiteRoom` **立即写盘**；`ToSave` 遇到 `PreFinishedRoom == null` 一律不写（地图界面同样不写，地图结束后的保存不推进检查点） | `SatchelRunModel.AfterRoomEntered` + 实测日志 |
 | 特殊：事件战斗不出塔罗（当前取舍） | 事件选项触发的战斗**有**官方卡牌奖励，但它不产生检查点，无法把预掷结果固定进存档；当前选择「事件战斗不生成塔罗」（`TryModifyRewards` 找不到预掷结果就不加），以后若支持需引入 `BeforeCombatRewardOffered` 插入 + 稳定战斗 key | 用户确认的设计取舍 |
+| 特殊：先古之民房间 SL | 先古之民（`EVENT.NEOW/OROBAS/PAEL`）只有两次有效存档：**进入房间**、**拿遗物生效**。实现：`AfterRoomEntered` 对 `EventRoom` 入口写盘；之后按 `PreFinishedRoom` 身份变化写（覆盖不同遗物/不同时机）；「保存并退出」触发的重复保存一律不写（暂停菜单 `OnSaveAndQuitButtonPressed` 标记退出流程）；读档后首次 ToSave 视为边界跳过 | `SatchelRunModel.BeginQuit/OnOfficialSnapshot` + `PersistencePatch` |
+| 特殊：退出的重复保存 | 「保存并退出」是给「继续」存进度，内容仍是同一检查点，不是新检查点；退出流程内的 ToSave 不写盘 | 实测日志 + 暂停菜单补丁 |
 | mod 状态写盘规则 | 只在官方 `ToSave` 产出的 `PreFinishedRoom` 身份（RoomType/EncounterId/EventId/IsPreFinished/ParentEventId/ShouldResumeParentEvent/EncounterState）变化时写；身份不变（含保存并退出、跨层、事件战斗）一律跳过；身份随状态文件持久化，读档后自动跳过首次 ToSave | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch` |
 
 ## 3. 临时文件规则

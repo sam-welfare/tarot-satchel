@@ -47,6 +47,19 @@ public sealed class SatchelRunModel : RunModel
                 return;
             }
             string identity = CheckpointIdentity(checkpointRoom);
+            if (_quitting)
+            {
+                ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
+                return;
+            }
+            if (_ignoreNextSnapshot)
+            {
+                // The first save after a load re-saves the snapshot we just restored from disk.
+                _ignoreNextSnapshot = false;
+                _lastCheckpointIdentity = identity;
+                ModEntry.Log.Info($"[store] load-boundary save adopted without writing: {identity}", 1);
+                return;
+            }
             if (identity == _lastCheckpointIdentity)
             {
                 ModEntry.Log.Info($"[store] checkpoint unchanged; skipped: {identity}", 1);
@@ -71,6 +84,19 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private static string _lastCheckpointIdentity;
+    private static bool _quitting;
+    private static bool _ignoreNextSnapshot;
+
+    /// <summary>
+    /// Called from the official pause-menu "save &amp; quit" handler. The re-save that follows when
+    /// returning to the main menu must not persist in-room actions (vanilla rolls them back).
+    /// </summary>
+    public static void BeginQuit()
+    {
+        if (_quitting) return;
+        _quitting = true;
+        ModEntry.Log.Info("[store] save-and-quit detected; no mod state will be written during the quit", 1);
+    }
 
     /// <summary>Identity of the official checkpoint room (all SerializableRoom state fields).</summary>
     private static string CheckpointIdentity(MegaCrit.Sts2.Core.Saves.Runs.SerializableRoom room)
@@ -139,6 +165,8 @@ public sealed class SatchelRunModel : RunModel
             // Adopt the checkpoint identity that was persisted with the loaded state, so the load-time
             // ToSave (which re-saves the same checkpoint) is skipped and no reward is pre-rolled twice.
             _lastCheckpointIdentity = null;
+            _quitting = false;
+            _ignoreNextSnapshot = true;
             _injectedRooms.Clear();
             try
             {
@@ -279,15 +307,25 @@ public sealed class SatchelRunModel : RunModel
             ModEntry.Log.Warn($"[combat] pre-shuffle retry failed: {e.Message}", 1);
         }
         SatchelBelt.RefreshAll();
-        // Treasure/shop/rest-site rooms have no pre-finished serialization, but entering them IS the
-        // official checkpoint for that room. Snapshot here so rewards claimed in the previous room are
-        // kept and in-room actions still roll back. Map/combat/event rooms are handled elsewhere.
-        if (room is TreasureRoom || room is MerchantRoom || room is RestSiteRoom)
+        // Treasure/shop/rest-site rooms have no pre-finished serialization, and the Ancient/event
+        // rooms only serialize after the event progresses. Their real checkpoint is the room entry, so
+        // snapshot it here; in-room actions still roll back until the next checkpoint (e.g. taking the
+        // Ancient relic) writes again.
+        if (room is TreasureRoom || room is MerchantRoom || room is RestSiteRoom || room is EventRoom)
         {
             try
             {
+                string entryIdentity = $"entry:{RoomKey(CurrentRun)}";
+                var run = CurrentRun;
+                if (run != null)
+                {
+                    foreach (var player in run.Players)
+                    {
+                        try { SatchelStore.ForPlayer(player).LastCheckpoint = entryIdentity; } catch { }
+                    }
+                }
                 SatchelStore.Save();
-                ModEntry.Log.Info($"[store] room-entry checkpoint ({room.RoomType}): {SatchelStore.SnapshotSummary()}", 1);
+                ModEntry.Log.Info($"[store] room-entry checkpoint ({room.RoomType}) {entryIdentity}: {SatchelStore.SnapshotSummary()}", 1);
             }
             catch (Exception e)
             {
