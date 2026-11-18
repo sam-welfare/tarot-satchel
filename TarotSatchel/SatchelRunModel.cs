@@ -655,23 +655,15 @@ public sealed class SatchelRunModel : RunModel
 
                 double chance;
                 double roll;
-                var upFront = run.Rng?.UpFront;
-                if (upFront == null)
-                {
-                    // Deterministic rollback requires the official RNG; without it, do not roll at all
-                    // (a local Random() would make the saved reward different on every reload).
-                    ModEntry.Log.Warn("[reward] official RNG unavailable; skipping pre-roll", 1);
-                    continue;
-                }
                 try { chance = Math.Clamp(st.Pity + (elite ? EliteBonus : 0.0), 0.0, 1.0); }
                 catch { chance = 0.0; }
-                // The RNG state is serialized inside ToSave, i.e. BEFORE this postfix consumes a draw.
-                // Reloading would therefore hand the same first draw to the NEXT combat's pre-roll and
-                // duplicate the drop. Mixing a stable per-room salt removes that collision while keeping
-                // the result deterministic for the same room.
-                uint salt = StableSalt(key);
-                double raw = upFront.NextDouble();
-                roll = (raw + (salt % 10000) / 10000.0) % 1.0;
+                // Deterministic per (run seed, room): the official RNG state is serialized inside ToSave
+                // before this postfix runs, so consuming it here would repeat the same draw for the next
+                // combat after a reload. Hashing the seed and room key keeps the drop random per run,
+                // reproducible for the same room and independent of the official RNG sequence.
+                string seed = SeedOrEmpty(run);
+                string rollInput = $"{seed}|roll|{key}";
+                roll = Hash01(rollInput);
 
                 bool dropped = roll < chance;
                 st.Pity = Math.Clamp(st.Pity + (dropped ? -DropStep : MissStep), 0.0, 1.0);
@@ -681,7 +673,7 @@ public sealed class SatchelRunModel : RunModel
                 {
                     List<CardModel> pool = null;
                     try { pool = TarotCards.All; } catch (Exception e) { ModEntry.Log.Warn($"[reward] tarot pool unavailable: {e.Message}", 1); }
-                    var canonical = PickTarot(pool, run, salt);
+                    var canonical = PickTarot(pool, run, $"{seed}|card|{key}");
                     if (canonical != null) st.PendingRewardId = canonical.Id.ToString();
                     ModEntry.Log.Info($"[reward] pre-rolled {combatRoom.RoomType} drop for {key}: {st.PendingRewardId} roll={roll:F3} chance={chance:F3} pityAfter={st.Pity:F2}", 1);
                 }
@@ -704,27 +696,33 @@ public sealed class SatchelRunModel : RunModel
         catch { return "err"; }
     }
 
-    private static CardModel PickTarot(List<CardModel> pool, RunState runState, uint salt)
+    private static CardModel PickTarot(List<CardModel> pool, RunState runState, string input)
     {
-        var upFront = runState?.Rng?.UpFront;
-        if (pool == null || pool.Count == 0 || upFront == null) return null;
-        int idx = (upFront.NextInt(pool.Count) + (int)(salt % (uint)pool.Count)) % pool.Count;
+        if (pool == null || pool.Count == 0) return null;
+        int idx = (int)(StableHash(input) % (uint)pool.Count);
         return idx >= 0 && idx < pool.Count ? pool[idx] : null;
     }
 
-    /// <summary>Stable per-room salt (FNV-1a) so pre-rolls differ between rooms even if the RNG
-    /// draw repeats after a reload (the RNG state is serialized before our postfix consumes it).</summary>
-    private static uint StableSalt(string key)
+    private static string SeedOrEmpty(RunState run)
+    {
+        try { return run?.Rng?.StringSeed ?? ""; } catch { return ""; }
+    }
+
+    /// <summary>Stable hash (FNV-1a 32-bit) for the deterministic stream based on run seed + room key.</summary>
+    private static uint StableHash(string input)
     {
         uint hash = 2166136261;
-        if (string.IsNullOrEmpty(key)) return hash;
-        foreach (char c in key)
+        if (string.IsNullOrEmpty(input)) return hash;
+        foreach (char c in input)
         {
             hash ^= c;
             hash *= 16777619;
         }
         return hash;
     }
+
+    /// <summary>Deterministic uniform value in [0,1) derived from a string.</summary>
+    private static double Hash01(string input) => StableHash(input) / 4294967296.0;
 
     public override bool TryModifyRewards(Player player, List<Reward> rewards, AbstractRoom room)
     {
