@@ -54,6 +54,29 @@ public static class SatchelBelt
         }
     }
 
+    /// <summary>
+    /// Refresh after a short delay so Godot's container layout/animation has settled. Used when the
+    /// official potion bar changes (add/remove/discard) instead of waiting for the 1s poll tick.
+    /// </summary>
+    public static void RefreshSoon()
+    {
+        try
+        {
+            var tree = Engine.GetMainLoop() as SceneTree;
+            if (tree == null)
+            {
+                RefreshAll();
+                return;
+            }
+            var timer = tree.CreateTimer(0.05);
+            timer.Timeout += () => { try { RefreshAll(); } catch { } };
+        }
+        catch
+        {
+            try { RefreshAll(); } catch { }
+        }
+    }
+
     /// <summary>Debug: show the replicated potion popup so its visuals can be screenshot-verified.</summary>
     public static void ShowTestPopup()
     {

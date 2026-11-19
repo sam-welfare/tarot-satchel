@@ -165,6 +165,34 @@ public static class PersistencePatcher
             if (rewardPatched == 0)
                 ModEntry.Log.Warn("[persist] reward row patch target not found", 1);
 
+            // Potion bar changes: refresh the belt immediately after the official container updates
+            // (Resized alone does not fire when holders are only repositioned, which made the belt look
+            // one second late). Deferred a couple of frames so Godot's layout has settled.
+            var onPotionChanged = typeof(PersistencePatcher).GetMethod("OnPotionContainerChanged",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            int potionPatched = 0;
+            if (onPotionChanged != null)
+            {
+                var potionMethods = typeof(MegaCrit.Sts2.Core.Nodes.Potions.NPotionContainer)
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var name in new[] { "GrowPotionHolders", "Add", "Discard", "RemoveUsed", "OnPotionProcured", "OnUsedPotionRemoved" })
+                {
+                    var target = potionMethods.FirstOrDefault(m => m.Name == name);
+                    if (target == null) continue;
+                    try
+                    {
+                        _harmony.Patch(target, postfix: new HarmonyMethod(onPotionChanged));
+                        potionPatched++;
+                    }
+                    catch (Exception e)
+                    {
+                        ModEntry.Log.Warn($"[persist] potion-bar patch failed for {name}: {e.Message}", 1);
+                    }
+                }
+            }
+            if (potionPatched == 0)
+                ModEntry.Log.Warn("[persist] potion-bar patch target not found", 1);
+
             ModEntry.Log.Info("[persist] harmony patches installed", 1);
         }
         catch (Exception e)
@@ -189,5 +217,10 @@ public static class PersistencePatcher
     private static void OnSetReward(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton __instance)
     {
         RewardRowLabel.Apply(__instance);
+    }
+
+    private static void OnPotionContainerChanged()
+    {
+        SatchelBelt.RefreshSoon();
     }
 }
