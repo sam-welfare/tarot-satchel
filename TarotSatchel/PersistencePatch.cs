@@ -165,9 +165,9 @@ public static class PersistencePatcher
             if (rewardPatched == 0)
                 ModEntry.Log.Warn("[persist] reward row patch target not found", 1);
 
-            // Potion bar changes: refresh the belt immediately after the official container updates
-            // (Resized alone does not fire when holders are only repositioned, which made the belt look
-            // one second late). Deferred a couple of frames so Godot's layout has settled.
+            // Potion bar layout: only slot-count/size changes move the belt (empty holders stay visible,
+            // so using/discarding a potion does not change geometry). GrowPotionHolders covers the
+            // relic-driven slot growth; NPotionContainer.Resized is handled inside SatchelBelt.
             var onPotionChanged = typeof(PersistencePatcher).GetMethod("OnPotionContainerChanged",
                 BindingFlags.NonPublic | BindingFlags.Static);
             int potionPatched = 0;
@@ -175,7 +175,7 @@ public static class PersistencePatcher
             {
                 var potionMethods = typeof(MegaCrit.Sts2.Core.Nodes.Potions.NPotionContainer)
                     .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                foreach (var name in new[] { "GrowPotionHolders", "Add", "Discard", "RemoveUsed", "OnPotionProcured", "OnUsedPotionRemoved" })
+                foreach (var name in new[] { "GrowPotionHolders" })
                 {
                     var target = potionMethods.FirstOrDefault(m => m.Name == name);
                     if (target == null) continue;
