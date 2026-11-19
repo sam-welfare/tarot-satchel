@@ -148,6 +148,9 @@ public static class SatchelBelt
 
         _cardIcon ??= LoadCardIcon();
         _anchorPotion = potions;
+        // Follow official potion-bar resizes immediately instead of waiting for the 1s poll tick,
+        // otherwise the belt visibly lags behind when potions are added/removed.
+        try { potions.Resized += OnPotionContainerResized; } catch { }
         _floorAnchor = floorIcon;
         _slotSize = slotSize;
 
@@ -247,6 +250,11 @@ public static class SatchelBelt
         UpdateGeometry(offsets);
         _lastRenderState = null;
         ModEntry.Log.Info($"[ui] belt built (official clone): potion={potions.GlobalPosition} size={potions.Size} slot={slotSize} floor={(floorIcon?.GlobalPosition.ToString() ?? "null")} at={_root.Position}", 1);
+    }
+
+    private static void OnPotionContainerResized()
+    {
+        try { RefreshAll(); } catch { }
     }
 
     private static bool CloseEnough(List<Vector2> a, List<Vector2> b, float eps)

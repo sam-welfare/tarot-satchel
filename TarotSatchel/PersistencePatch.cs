@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -137,22 +138,32 @@ public static class PersistencePatcher
                 _harmony.Patch(saveAndQuit, postfix: new HarmonyMethod(onSaveAndQuit));
             }
 
-            // Reward row text: set it when the official button receives its reward, before the first
-            // frame (the poller-based rename used to flash the generic label).
-            var setReward = typeof(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton).GetMethod(
-                "SetReward",
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null,
-                new[] { typeof(Reward) }, null);
+            // Reward row text: the official button may rewrite its label after SetReward (e.g. Reload
+            // on locale refresh), so apply the tarot label after every one of these entry points.
             var onSetReward = typeof(PersistencePatcher).GetMethod("OnSetReward",
                 BindingFlags.NonPublic | BindingFlags.Static);
-            if (setReward == null || onSetReward == null)
+            int rewardPatched = 0;
+            if (onSetReward != null)
             {
+                var methods = typeof(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton)
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var name in new[] { "SetReward", "Reload", "_Ready" })
+                {
+                    var target = methods.FirstOrDefault(m => m.Name == name);
+                    if (target == null) continue;
+                    try
+                    {
+                        _harmony.Patch(target, postfix: new HarmonyMethod(onSetReward));
+                        rewardPatched++;
+                    }
+                    catch (Exception e)
+                    {
+                        ModEntry.Log.Warn($"[persist] reward row patch failed for {name}: {e.Message}", 1);
+                    }
+                }
+            }
+            if (rewardPatched == 0)
                 ModEntry.Log.Warn("[persist] reward row patch target not found", 1);
-            }
-            else
-            {
-                _harmony.Patch(setReward, postfix: new HarmonyMethod(onSetReward));
-            }
 
             ModEntry.Log.Info("[persist] harmony patches installed", 1);
         }
