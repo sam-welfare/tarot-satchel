@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -137,6 +138,61 @@ public static class PersistencePatcher
                 _harmony.Patch(saveAndQuit, postfix: new HarmonyMethod(onSaveAndQuit));
             }
 
+            // Reward row text: the official button may rewrite its label after SetReward (e.g. Reload
+            // on locale refresh), so apply the tarot label after every one of these entry points.
+            var onSetReward = typeof(PersistencePatcher).GetMethod("OnSetReward",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            int rewardPatched = 0;
+            if (onSetReward != null)
+            {
+                var methods = typeof(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton)
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var name in new[] { "SetReward", "Reload", "_Ready" })
+                {
+                    var target = methods.FirstOrDefault(m => m.Name == name);
+                    if (target == null) continue;
+                    try
+                    {
+                        _harmony.Patch(target, postfix: new HarmonyMethod(onSetReward));
+                        rewardPatched++;
+                    }
+                    catch (Exception e)
+                    {
+                        ModEntry.Log.Warn($"[persist] reward row patch failed for {name}: {e.Message}", 1);
+                    }
+                }
+            }
+            if (rewardPatched == 0)
+                ModEntry.Log.Warn("[persist] reward row patch target not found", 1);
+
+            // Potion bar layout: only slot-count/size changes move the belt (empty holders stay visible,
+            // so using/discarding a potion does not change geometry). GrowPotionHolders covers the
+            // relic-driven slot growth; NPotionContainer.Resized is handled inside SatchelBelt.
+            var onPotionChanged = typeof(PersistencePatcher).GetMethod("OnPotionContainerChanged",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            int potionPatched = 0;
+            if (onPotionChanged != null)
+            {
+                var potionMethods = typeof(MegaCrit.Sts2.Core.Nodes.Potions.NPotionContainer)
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (var name in new[] { "GrowPotionHolders" })
+                {
+                    var target = potionMethods.FirstOrDefault(m => m.Name == name);
+                    if (target == null) continue;
+                    try
+                    {
+                        _harmony.Patch(target, postfix: new HarmonyMethod(onPotionChanged));
+                        potionPatched++;
+                    }
+                    catch (Exception e)
+                    {
+                        ModEntry.Log.Warn($"[persist] potion-bar patch failed for {name}: {e.Message}", 1);
+                    }
+                }
+            }
+            if (potionPatched == 0)
+                ModEntry.Log.Warn("[persist] potion-bar patch target not found", 1);
+
             ModEntry.Log.Info("[persist] harmony patches installed", 1);
         }
         catch (Exception e)
@@ -156,5 +212,15 @@ public static class PersistencePatcher
     private static void OnSaveAndQuit()
     {
         SatchelRunModel.BeginQuit();
+    }
+
+    private static void OnSetReward(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton __instance)
+    {
+        RewardRowLabel.Apply(__instance);
+    }
+
+    private static void OnPotionContainerChanged()
+    {
+        SatchelBelt.RefreshSoon();
     }
 }

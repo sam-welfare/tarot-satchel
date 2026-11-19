@@ -31,6 +31,7 @@ public static class SatchelBelt
     private static NinePatchRect _errorBg;
     private static Control _floorAnchor;
     private static int _capacity = SatchelStore.DefaultCapacity;
+    private static List<Vector2> _lastGoodOffsets;
     private static Vector2 _slotSize = new(60, 60);
     private static Vector2 _fixedPanelSize = new(159, 71);
     private static Vector2 _fixedPanelPos = new(0, 4);
@@ -50,6 +51,29 @@ public static class SatchelBelt
         catch (Exception e)
         {
             ModEntry.Log.Warn($"[ui] refresh failed: {e.Message}", 1);
+        }
+    }
+
+    /// <summary>
+    /// Refresh after a short delay so Godot's container layout/animation has settled. Used when the
+    /// official potion bar changes (add/remove/discard) instead of waiting for the 1s poll tick.
+    /// </summary>
+    public static void RefreshSoon()
+    {
+        try
+        {
+            var tree = Engine.GetMainLoop() as SceneTree;
+            if (tree == null)
+            {
+                RefreshAll();
+                return;
+            }
+            var timer = tree.CreateTimer(0.05);
+            timer.Timeout += () => { try { RefreshAll(); } catch { } };
+        }
+        catch
+        {
+            try { RefreshAll(); } catch { }
         }
     }
 
@@ -92,6 +116,7 @@ public static class SatchelBelt
         _panel = null;
         _slots.Clear();
         _slotIcons.Clear();
+        _lastGoodOffsets = null;
         if (tree?.Root == null) return;
         foreach (var stale in tree.Root.FindChildren("TarotSatchelBelt", "", true, false))
         {
@@ -146,6 +171,9 @@ public static class SatchelBelt
 
         _cardIcon ??= LoadCardIcon();
         _anchorPotion = potions;
+        // Follow official potion-bar resizes immediately instead of waiting for the 1s poll tick,
+        // otherwise the belt visibly lags behind when potions are added/removed.
+        try { potions.Resized += OnPotionContainerResized; } catch { }
         _floorAnchor = floorIcon;
         _slotSize = slotSize;
 
@@ -245,6 +273,19 @@ public static class SatchelBelt
         UpdateGeometry(offsets);
         _lastRenderState = null;
         ModEntry.Log.Info($"[ui] belt built (official clone): potion={potions.GlobalPosition} size={potions.Size} slot={slotSize} floor={(floorIcon?.GlobalPosition.ToString() ?? "null")} at={_root.Position}", 1);
+    }
+
+    private static void OnPotionContainerResized()
+    {
+        try { RefreshAll(); } catch { }
+    }
+
+    private static bool CloseEnough(List<Vector2> a, List<Vector2> b, float eps)
+    {
+        int n = Mathf.Min(a.Count, b.Count);
+        for (int i = 0; i < n; i++)
+            if ((a[i] - b[i]).Length() > eps) return false;
+        return true;
     }
 
     private static Control CloneBackdrop(NinePatchRect src)
@@ -423,9 +464,25 @@ public static class SatchelBelt
                 if (Mathf.Abs(current[i].X - current[0].X) < 1f) badLayout = true;
             if (badLayout)
             {
-                current.Clear();
-                for (int i = 0; i < _capacity; i++)
-                    current.Add(new Vector2(18 + i * 62, 9));
+                // Mid-layout measurements can collapse to zero; reuse the last good offsets instead of
+                // jumping to the hardcoded fallback (that fallback churn was the visible belt jitter).
+                if (_lastGoodOffsets != null && _lastGoodOffsets.Count >= _capacity)
+                    current = new List<Vector2>(_lastGoodOffsets);
+                else
+                {
+                    current.Clear();
+                    for (int i = 0; i < _capacity; i++)
+                        current.Add(new Vector2(18 + i * 62, 9));
+                }
+            }
+            else
+            {
+                // Ignore sub-pixel churn from the live potion holders so the belt stops moving when
+                // nothing actually changed.
+                if (_lastGoodOffsets == null || _lastGoodOffsets.Count != current.Count || !CloseEnough(current, _lastGoodOffsets, 1f))
+                    _lastGoodOffsets = new List<Vector2>(current);
+                else
+                    current = new List<Vector2>(_lastGoodOffsets);
             }
 
             // Panel shape follows the slot layout only (never the potion container width), and is
@@ -460,7 +517,8 @@ public static class SatchelBelt
             }
 
             var pos = ComputeMirroredPosition(_parentNode, _anchorPotion, potionSize, _floorAnchor);
-            if (_root.Position != pos) _root.Position = pos;
+            // Threshold: skip sub-pixel moves so the belt does not visibly drift every tick.
+            if ((_root.Position - pos).Length() >= 1f) _root.Position = pos;
         }
         catch (Exception e)
         {

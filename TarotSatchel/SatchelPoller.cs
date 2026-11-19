@@ -49,30 +49,6 @@ public static class SatchelPoller
         }
     }
 
-    /// <summary>Rename the tarot reward row to "Tarot · Card Name" (official label is generic).</summary>
-    private static void FixRewardRowLabels()
-    {
-        try
-        {
-            var tree = Engine.GetMainLoop() as SceneTree;
-            var screen = FindFirst<MegaCrit.Sts2.Core.Nodes.Screens.NRewardsScreen>(tree?.Root);
-            if (screen == null) return;
-            foreach (var btn in Descendants(screen).OfType<MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton>())
-            {
-                string desired = null;
-                var reward = btn.Reward;
-                if (reward is TarotCardReward tcr) desired = "塔罗牌·" + TarotNames.GetDisplayName(tcr.Tarot);
-                if (desired == null) continue;
-                var label = FindFirst<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>(btn);
-                if (label != null && label.Text != desired) label.Text = desired;
-            }
-        }
-        catch (Exception e)
-        {
-            ModEntry.Log.Warn($"[ui] reward label fix failed: {e.Message}", 1);
-        }
-    }
-
     /// <summary>Debug: capture a burst of frames so a short animation can be inspected.</summary>
     public static void BurstShots(string basePath, int frames = 10, float step = 0.15f)
     {
@@ -202,7 +178,6 @@ public static class SatchelPoller
             if (System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_PROBE_POPUP") == "1") TopBarProbe.DumpPotionPopupOnce();
             if (System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_BLUEPRINT") == "1") TopBarProbe.DumpPotionPopupBlueprint();
             MaybeScreenshot();
-            FixRewardRowLabels();
         }
         catch (Exception e)
         {
