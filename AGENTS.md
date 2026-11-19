@@ -32,6 +32,9 @@
 | 卡牌进战斗抽牌堆 | `CardPileCmd.AddGeneratedCardToCombat(card, PileType.Draw, player, CardPilePosition.Random)` | `MegaCrit.Sts2.Core.Commands` |
 | 加入牌堆的官方预览动画 | `CardCmd.Preview(card, time, CardPreviewStyle)`（「屏幕中央生成 NCard→飞向所在牌堆」），返回 TaskCompletionSource 可 await | `MegaCrit.Sts2.Core.Commands` + `sts2.xml` |
 | 抽手牌前的官方钩子（动画先于抽牌） | `AbstractModel.BeforeHandDraw(Player, PlayerChoiceContext, ICombatState)`，引擎 await 后才抽牌；`BlessedAntler` 即用此钩子 | `MegaCrit.Sts2.Core.Models` |
+| 多张卡同时预览 | `CardCmd.Preview(IReadOnlyList<CardModel>, float, CardPreviewStyle)`（列表重载，返回 void）；同时播放后用 `SceneTree.CreateTimer(t).Timeout` 等一次即可，手牌只延迟一次 | `MegaCrit.Sts2.Core.Commands` + Godot `SceneTreeTimer` |
+| 奖励行文字设置时机 | `NRewardButton.SetReward(Reward)` / `Reload()` / `_Ready()`；官方会在 SetReward 之后用 `Reward.Description` 重设 `%Label`，只在 SetReward 改会被覆盖，需在 Reload/_Ready 也补 | `MegaCrit.Sts2.Core.Nodes.Rewards` |
+| 卡牌奖励描述键 | `SpecialCardReward.Description` = `LocString("gameplay_ui", "COMBAT_REWARD_ADD_SPECIAL_CARD")`，变量 `Card`（所以官方行文是「将一张 X 加入牌组」） | `MegaCrit.Sts2.Core.Rewards` |
 | 药水栏底板 | `NPotionContainer` 子节点 `PotionBg`（NinePatchRect，`top_bar_char_backdrop.tres`） | 运行时探针 |
 | 塔罗栏位布局（重要） | belt 面板以 `NTopBar.FloorIcon` 为轴**镜像定位**（`mirroredLeft = 2*floorCenter.X - (potions.GlobalPosition.X + potions.Size.X)`），即放在药水栏的对侧；但**槽位在面板内必须从左到右排列**（索引 0 = 最左）。曾把槽位也按面板宽度镜像（`panelW - (x + slotW)`），导致「填最左空位」实际显示在最右；面板宽度按 `Capacity` 计算，不跟随药水容器尺寸。**容量上限固定为 3**（用户实测 3 格不遮挡，决定不再增长），`SatchelStore.MaxCapacity = 3` | `SatchelBelt.EnsureAttached/UpdateGeometry` + 实测 |
 | 药水栏联动 | 塔罗栏位只在**药水栏布局变化**时重新对齐：`NPotionContainer.GrowPotionHolders` postfix + `NPotionContainer.Resized` 信号 + 初始挂载；使用/丢弃药水不改变几何（空格位始终显示），因此不挂这些钩子。几何缓存 + 1px 阈值防止抖动，变化后 0.05s 再刷新等布局收敛 | `SatchelBelt.RefreshSoon/UpdateGeometry` + `PersistencePatch` |
@@ -47,7 +50,8 @@
 | 特殊：先古之民房间 SL | 先古之民（`EVENT.NEOW/OROBAS/PAEL` 等）只有两次有效存档：**进入房间**、**拿遗物生效**（不同遗物的存档时机不同，例如奖励选牌要选完才存）。实现：`AfterRoomEntered` 对 `EventRoom` 入口写盘；之后按 `IsPreFinished=True` 的事件存档写（不依赖遗物状态）；「保存并退出」的重复保存不写（暂停菜单 `OnSaveAndQuitButtonPressed` 标记退出流程）；读档后首次 ToSave 视为边界跳过 | `SatchelRunModel.BeginQuit/OnOfficialSnapshot` + `PersistencePatch` |
 | 特殊：退出的重复保存 | 「保存并退出」是给「继续」存进度，内容仍是同一检查点，不是新检查点；退出流程内的 ToSave 不写盘 | 实测日志 + 暂停菜单补丁 |
 | 掉落随机源（重要） | 塔罗掉落**不消耗官方 RNG**：`roll = Hash01(seed + "|roll|" + act:floor)`，`chance = clamp(Pity + 精英?0.125:0)`，`Pity` 初始 0.15、掉落 −0.20、未掉 +0.10；选卡 `StableHash(seed+"|card|"+key) % 22`。哈希为 FNV-1a 64 + SplitMix64 终混（必须带终混，否则相邻房间 key 输出聚集）。原因：官方 RNG 状态在 `ToSave` 内部先序列化，在 postfix 里消耗会导致读档后下一场抽到同一值 | `SatchelRunModel.PreRollRewardAtSavePoint/Hash01` |
-| mod 状态写盘规则 | 只在官方检查点推进时写：`ToSave` 的 `PreFinishedRoom` 身份变化（战斗/普通房间）、或事件房间入口 + `IsPreFinished=True` 的事件存档；退出流程、读档边界、未完成事件存档一律跳过；身份随状态文件持久化（`LastCheckpoint`），读档后首次 ToSave 自动跳过 | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch`（共 3 个补丁：Reward.FromSerializable、RunManager.ToSave、NPauseMenu.OnSaveAndQuitButtonPressed） |
+| mod 状态写盘规则 | 只在官方检查点推进时写：`ToSave` 的 `PreFinishedRoom` 身份变化（战斗/普通房间）、或事件房间入口 + `IsPreFinished=True` 的事件存档；退出流程、读档边界、未完成事件存档一律跳过；身份随状态文件持久化（`LastCheckpoint`），读档后首次 ToSave 自动跳过 | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch` |
+| 双语文本 | mod 自有文字用 `LocText`（按 `LocManager.Instance.Language` 判断）：奖励行前缀「塔罗牌·」/「Tarot · 」，弹窗「使用/丢弃」/「Use/Discard」；卡牌名仍来自官方 LocString | `LocText.cs` + 实测 |
 
 ## 3. 临时文件规则
 
