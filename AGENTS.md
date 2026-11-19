@@ -50,7 +50,8 @@
 | 特殊：先古之民房间 SL | 先古之民（`EVENT.NEOW/OROBAS/PAEL` 等）只有两次有效存档：**进入房间**、**拿遗物生效**（不同遗物的存档时机不同，例如奖励选牌要选完才存）。实现：`AfterRoomEntered` 对 `EventRoom` 入口写盘；之后按 `IsPreFinished=True` 的事件存档写（不依赖遗物状态）；「保存并退出」的重复保存不写（暂停菜单 `OnSaveAndQuitButtonPressed` 标记退出流程）；读档后首次 ToSave 视为边界跳过 | `SatchelRunModel.BeginQuit/OnOfficialSnapshot` + `PersistencePatch` |
 | 特殊：退出的重复保存 | 「保存并退出」是给「继续」存进度，内容仍是同一检查点，不是新检查点；退出流程内的 ToSave 不写盘 | 实测日志 + 暂停菜单补丁 |
 | 掉落随机源（重要） | 塔罗掉落**不消耗官方 RNG**：`roll = Hash01(seed + "|roll|" + act:floor)`，`chance = clamp(Pity + 精英?0.125:0)`，`Pity` 初始 0.15、掉落 −0.20、未掉 +0.10；选卡 `StableHash(seed+"|card|"+key) % 22`。哈希为 FNV-1a 64 + SplitMix64 终混（必须带终混，否则相邻房间 key 输出聚集）。原因：官方 RNG 状态在 `ToSave` 内部先序列化，在 postfix 里消耗会导致读档后下一场抽到同一值 | `SatchelRunModel.PreRollRewardAtSavePoint/Hash01` |
-| mod 状态写盘规则 | 只在官方检查点推进时写：`ToSave` 的 `PreFinishedRoom` 身份变化（战斗/普通房间）、或事件房间入口 + `IsPreFinished=True` 的事件存档；退出流程、读档边界、未完成事件存档一律跳过；身份随状态文件持久化（`LastCheckpoint`），读档后首次 ToSave 自动跳过 | `SatchelRunModel.OnOfficialSnapshot` + `PersistencePatch` |
+| mod 状态写盘规则 | 检查点来源：① `ToSave` 的 `PreFinishedRoom` 身份变化（战斗结束/房间推进）；② null-room 存档且 `CurrentMapPoint` 变成新的非 `Unknown` 节点（选点进房，历史尚未 append）；③ `AfterRoomEntered` 的 `Treasure/Merchant/RestSite/EventRoom` 入口；④ `AfterRoomEntered` 的 `CombatRoom` 且 `BaseRoom` 不是 `EventRoom`（普通/「?」战斗入口）。不写：退出流程、读档后首次 ToSave、地图界面/`Unknown` 节点、事件房间 `IsPreFinished=False` 存档、事件选项战斗入口、跨层未进先古之民。身份随状态文件持久化（`LastCheckpoint`） | `SatchelRunModel.OnOfficialSnapshot/AfterRoomEntered` + `PersistencePatch`（6 处补丁，见清单 §四） |
+| 特殊：战斗入口检查点 | 普通战斗/「?」战斗在 `AfterRoomEntered` 直接写检查点（不依赖选点存档是否可识别）；事件选项战斗用官方 `RunState.BaseRoom is EventRoom` 判定并**不写**，保持可 SL 回选项界面 | 实测日志 `combat-entry checkpoint` / `event-combat entry (no checkpoint by design)` |
 | 双语文本 | mod 自有文字用 `LocText`（按 `LocManager.Instance.Language` 判断）：奖励行前缀「塔罗牌·」/「Tarot · 」，弹窗「使用/丢弃」/「Use/Discard」；卡牌名仍来自官方 LocString | `LocText.cs` + 实测 |
 
 ## 3. 临时文件规则
