@@ -39,12 +39,14 @@ public sealed class SatchelRunModel : RunModel
         try
         {
             var checkpointRoom = serializable?.PreFinishedRoom;
+            int historyPoints = HistoryPoints(serializable);
             // The first ToSave after a load re-saves the snapshot we restored from disk. Consume the
             // flag on that call even when it carries no room (null-room saves arrive first for event
             // rooms), otherwise the next genuine checkpoint (e.g. taking the Ancient relic) is swallowed.
             if (_ignoreNextSnapshot)
             {
                 _ignoreNextSnapshot = false;
+                _lastHistoryPoints = historyPoints;
                 if (checkpointRoom != null)
                 {
                     string adopted = CheckpointIdentity(checkpointRoom);
@@ -57,20 +59,38 @@ public sealed class SatchelRunModel : RunModel
                 }
                 return;
             }
-            if (checkpointRoom == null)
-            {
-                // Treasure/shop/rest-site rooms have no pre-finished serialization, and the map-screen
-                // save is not a checkpoint either. Their checkpoint is handled at room entry instead
-                // (AfterRoomEntered), so nothing is written here.
-                ModEntry.Log.Info("[store] ToSave has no pre-finished room; not a checkpoint, skipped", 1);
-                return;
-            }
-            string identity = CheckpointIdentity(checkpointRoom);
             if (_quitting)
             {
-                ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
+                ModEntry.Log.Info("[store] save-and-quit re-save; not a checkpoint, skipped", 1);
                 return;
             }
+            if (checkpointRoom == null)
+            {
+                // Null-room saves come from two places:
+                //  - selecting a map point / entering a room whose room is not serialized yet (this IS
+                //    the checkpoint the game resumes at -- the map-point history grew);
+                //  - re-saving while sitting on the map or inside a non-serializable room (no growth).
+                // Writing on the first case is what makes mid-combat save & quit re-inject the tarots.
+                if (historyPoints != _lastHistoryPoints && historyPoints > 0)
+                {
+                    _lastHistoryPoints = historyPoints;
+                    var mapRun = ModEntry.Model?.CurrentRun;
+                    if (mapRun != null)
+                    {
+                        foreach (var player in mapRun.Players)
+                        {
+                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"map:{historyPoints}"; } catch { }
+                        }
+                        SatchelStore.Save();
+                        ModEntry.Log.Info($"[store] map-point checkpoint ({historyPoints} points): {SatchelStore.SnapshotSummary()}", 1);
+                    }
+                    return;
+                }
+                ModEntry.Log.Info("[store] ToSave has no pre-finished room and no new map point; skipped", 1);
+                return;
+            }
+            _lastHistoryPoints = historyPoints;
+            string identity = CheckpointIdentity(checkpointRoom);
 
             var run = ModEntry.Model?.CurrentRun;
             if (run == null) return;
@@ -127,6 +147,7 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private static string _lastCheckpointIdentity;
+    private static int _lastHistoryPoints = -1;
     private static bool _quitting;
     private static bool _ignoreNextSnapshot;
 
@@ -139,6 +160,21 @@ public sealed class SatchelRunModel : RunModel
         if (_quitting) return;
         _quitting = true;
         ModEntry.Log.Info("[store] save-and-quit detected; no mod state will be written during the quit", 1);
+    }
+
+    /// <summary>Total number of visited map points across acts (the map-point history shape).</summary>
+    private static int HistoryPoints(MegaCrit.Sts2.Core.Saves.SerializableRun run)
+    {
+        int total = 0;
+        try
+        {
+            var history = run?.MapPointHistory;
+            if (history != null)
+                foreach (var act in history)
+                    total += act?.Count ?? 0;
+        }
+        catch { }
+        return total;
     }
 
     /// <summary>Identity of the official checkpoint room (all SerializableRoom state fields).</summary>
@@ -209,6 +245,7 @@ public sealed class SatchelRunModel : RunModel
             _lastCheckpointIdentity = null;
             _quitting = false;
             _ignoreNextSnapshot = true;
+            _lastHistoryPoints = -1;
             _injectedRooms.Clear();
             try
             {
