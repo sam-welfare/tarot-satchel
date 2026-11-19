@@ -426,6 +426,38 @@ public sealed class SatchelRunModel : RunModel
                 ModEntry.Log.Warn($"[store] room-entry save failed: {e.Message}", 1);
             }
         }
+        // A real combat node is a checkpoint at entry (map-point/"?" nodes do not always produce a
+        // recognizable ToSave beforehand). Event-option combats are NOT checkpoints: there the base room
+        // is the EventRoom, and vanilla lets the player save & quit back to the event options.
+        if (room is CombatRoom)
+        {
+            bool eventCombat = false;
+            try { eventCombat = CurrentRun?.BaseRoom is EventRoom; } catch { }
+            if (!eventCombat)
+            {
+                try
+                {
+                    var run = CurrentRun;
+                    if (run != null)
+                    {
+                        foreach (var player in run.Players)
+                        {
+                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"combat-entry:{RoomKey(run)}"; } catch { }
+                        }
+                    }
+                    SatchelStore.Save();
+                    ModEntry.Log.Info($"[store] combat-entry checkpoint: {SatchelStore.SnapshotSummary()}", 1);
+                }
+                catch (Exception e)
+                {
+                    ModEntry.Log.Warn($"[store] combat-entry save failed: {e.Message}", 1);
+                }
+            }
+            else
+            {
+                ModEntry.Log.Info("[store] event-combat entry (no checkpoint by design)", 1);
+            }
+        }
         return Task.CompletedTask;
     }
 
