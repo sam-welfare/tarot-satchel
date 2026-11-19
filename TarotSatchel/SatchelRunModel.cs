@@ -66,7 +66,17 @@ public sealed class SatchelRunModel : RunModel
             }
             if (checkpointRoom == null)
             {
-                // Null-room saves come from two places:
+                // Diagnostics: a null-room save is either a node entry (checkpoint) or a re-save on the
+                // map / inside a non-serializable room. Log enough context to tell them apart in reports.
+                string pointInfo = "?";
+                try
+                {
+                    var dbgRun = ModEntry.Model?.CurrentRun;
+                    var mp = dbgRun?.CurrentMapPoint;
+                    pointInfo = mp == null ? "null" : mp.PointType.ToString();
+                }
+                catch { }
+                ModEntry.Log.Info($"[store] null-room save: points={historyPoints} last={_lastHistoryPoints} mapPoint={pointInfo}", 1);
                 //  - selecting a map point / entering a room whose room is not serialized yet (this IS
                 //    the checkpoint the game resumes at -- the map-point history grew);
                 //  - re-saving while sitting on the map or inside a non-serializable room (no growth).
