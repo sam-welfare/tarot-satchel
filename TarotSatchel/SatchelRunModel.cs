@@ -47,6 +47,7 @@ public sealed class SatchelRunModel : RunModel
             {
                 _ignoreNextSnapshot = false;
                 _lastHistoryPoints = historyPoints;
+                try { _lastMapPointRef = ModEntry.Model?.CurrentRun?.CurrentMapPoint; } catch { }
                 if (checkpointRoom != null)
                 {
                     string adopted = CheckpointIdentity(checkpointRoom);
@@ -66,22 +67,27 @@ public sealed class SatchelRunModel : RunModel
             }
             if (checkpointRoom == null)
             {
-                // Diagnostics: a null-room save is either a node entry (checkpoint) or a re-save on the
-                // map / inside a non-serializable room. Log enough context to tell them apart in reports.
+                // Null-room saves happen when a map point is selected (the new node is already
+                // CurrentMapPoint, but the history entry is appended only after the save) and when the
+                // game re-saves while sitting on the map/inside a non-serializable room (map screen
+                // shows CurrentMapPoint with type Unknown). Detect the former by map-point identity.
+                object mapPointRef = null;
                 string pointInfo = "?";
+                bool unknownPoint = true;
                 try
                 {
                     var dbgRun = ModEntry.Model?.CurrentRun;
                     var mp = dbgRun?.CurrentMapPoint;
+                    mapPointRef = mp;
                     pointInfo = mp == null ? "null" : mp.PointType.ToString();
+                    unknownPoint = string.Equals(pointInfo, "Unknown", StringComparison.OrdinalIgnoreCase) || mp == null;
                 }
                 catch { }
-                ModEntry.Log.Info($"[store] null-room save: points={historyPoints} last={_lastHistoryPoints} mapPoint={pointInfo}", 1);
-                //  - selecting a map point / entering a room whose room is not serialized yet (this IS
-                //    the checkpoint the game resumes at -- the map-point history grew);
-                //  - re-saving while sitting on the map or inside a non-serializable room (no growth).
-                // Writing on the first case is what makes mid-combat save & quit re-inject the tarots.
-                if (historyPoints != _lastHistoryPoints && historyPoints > 0)
+                bool newNode = !unknownPoint && !ReferenceEquals(mapPointRef, _lastMapPointRef);
+                ModEntry.Log.Info($"[store] null-room save: points={historyPoints} last={_lastHistoryPoints} mapPoint={pointInfo} newNode={newNode}", 1);
+
+                if (mapPointRef != null) _lastMapPointRef = mapPointRef;
+                if (newNode)
                 {
                     _lastHistoryPoints = historyPoints;
                     var mapRun = ModEntry.Model?.CurrentRun;
@@ -89,10 +95,10 @@ public sealed class SatchelRunModel : RunModel
                     {
                         foreach (var player in mapRun.Players)
                         {
-                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"map:{historyPoints}"; } catch { }
+                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"map:{pointInfo}"; } catch { }
                         }
                         SatchelStore.Save();
-                        ModEntry.Log.Info($"[store] map-point checkpoint ({historyPoints} points): {SatchelStore.SnapshotSummary()}", 1);
+                        ModEntry.Log.Info($"[store] map-point checkpoint ({pointInfo}): {SatchelStore.SnapshotSummary()}", 1);
                     }
                     return;
                 }
@@ -158,6 +164,7 @@ public sealed class SatchelRunModel : RunModel
 
     private static string _lastCheckpointIdentity;
     private static int _lastHistoryPoints = -1;
+    private static object _lastMapPointRef;
     private static bool _quitting;
     private static bool _ignoreNextSnapshot;
 
@@ -256,6 +263,7 @@ public sealed class SatchelRunModel : RunModel
             _quitting = false;
             _ignoreNextSnapshot = true;
             _lastHistoryPoints = -1;
+            _lastMapPointRef = null;
             _injectedRooms.Clear();
             try
             {
