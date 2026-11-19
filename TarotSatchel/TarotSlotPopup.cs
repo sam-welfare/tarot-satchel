@@ -105,8 +105,8 @@ public static class TarotSlotPopup
             container.MouseFilter = Control.MouseFilterEnum.Ignore;
             popup.AddChild(container);
 
-            ExtractButton(container, "UseButton", UseRect, UseSize, "使用", disabled, onUse);
-            ExtractButton(container, "DiscardButton", DiscardRect, DiscardSize, "丢弃", disabled, onDiscard);
+            ExtractButton(container, "UseButton", UseRect, UseSize, LocText.Use, disabled, onUse);
+            ExtractButton(container, "DiscardButton", DiscardRect, DiscardSize, LocText.Discard, disabled, onDiscard);
             inst.QueueFree();
             ModEntry.Log.Info("[ui] popup built from official potion scene", 1);
             return true;
@@ -197,9 +197,9 @@ public static class TarotSlotPopup
         popup.AddChild(bg);
 
         AddManualButton(popup, "UseButton", UseRect, UseSize, PopupTopPath, new Vector2(-2, -39), new Vector2(241, 129),
-            new Color(1f, 0.9647f, 0.8863f, 1f), LocOr("USE", "使用"), disabled, onUse);
+            new Color(1f, 0.9647f, 0.8863f, 1f), LocText.Use, disabled, onUse);
         AddManualButton(popup, "DiscardButton", DiscardRect, DiscardSize, PopupBottomPath, new Vector2(-3, -3), new Vector2(241, 93),
-            new Color(1f, 0.3333f, 0.3333f, 1f), LocOr("DISCARD", "丢弃"), disabled, onDiscard);
+            new Color(1f, 0.3333f, 0.3333f, 1f), LocText.Discard, disabled, onDiscard);
     }
 
     private static void AddManualButton(Control parent, string name, Vector2 pos, Vector2 size,

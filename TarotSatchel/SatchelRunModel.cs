@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Godot;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -488,10 +489,10 @@ public sealed class SatchelRunModel : RunModel
 
     /// <summary>
     /// Official animation + hand-draw ordering, copied from <c>BlessedAntler</c>: the engine awaits
-    /// <c>BeforeHandDraw</c> before it draws the opening hand, and <c>CardCmd.Preview</c> returns a
-    /// TaskCompletionSource that completes when the NCard finishes flying into its pile. Awaiting it
-    /// here therefore makes the tarot preview finish *before* cards are drawn into the hand.
-    /// Multiple tarots used in one run are all previewed in this single hook.
+    /// <c>BeforeHandDraw</c> before it draws the opening hand. Multiple tarots are previewed with the
+    /// official list overload (they appear and fly together), then we wait exactly one preview
+    /// duration with a SceneTreeTimer, so the hand is drawn once after the whole animation instead of
+    /// waiting for each card sequentially.
     /// </summary>
     public override async Task BeforeHandDraw(Player player, PlayerChoiceContext context, ICombatState combatState)
     {
@@ -509,13 +510,12 @@ public sealed class SatchelRunModel : RunModel
         {
             var burst = System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_BURST");
             if (!string.IsNullOrEmpty(burst)) SatchelPoller.BurstShots(burst, 16, 0.35f);
+            MegaCrit.Sts2.Core.Commands.CardCmd.Preview(
+                cards, PreviewSeconds, MegaCrit.Sts2.Core.Nodes.CommonUi.CardPreviewStyle.HorizontalLayout);
             foreach (var card in cards)
-            {
-                var tcs = MegaCrit.Sts2.Core.Commands.CardCmd.Preview(
-                    card, 1.0f, MegaCrit.Sts2.Core.Nodes.CommonUi.CardPreviewStyle.HorizontalLayout);
-                if (tcs != null) await tcs.Task;
-                ModEntry.Log.Info($"[combat] preview finished before hand draw for {card.Id}", 1);
-            }
+                ModEntry.Log.Info($"[combat] simultaneous preview started for {card.Id}", 1);
+            await WaitSeconds(PreviewSeconds);
+            ModEntry.Log.Info($"[combat] simultaneous preview finished before hand draw ({cards.Count} card(s))", 1);
         }
         catch (Exception e)
         {
@@ -525,6 +525,30 @@ public sealed class SatchelRunModel : RunModel
         {
             _pendingPreviewCards.RemoveAll(c => cards.Contains(c));
         }
+    }
+
+    private const float PreviewSeconds = 1.0f;
+
+    /// <summary>Wait on the main SceneTree clock (safe continuation inside Godot's awaited hook).</summary>
+    private static Task WaitSeconds(float seconds)
+    {
+        var tcs = new TaskCompletionSource();
+        try
+        {
+            var tree = Engine.GetMainLoop() as SceneTree;
+            if (tree == null)
+            {
+                tcs.TrySetResult();
+                return tcs.Task;
+            }
+            var timer = tree.CreateTimer(seconds);
+            timer.Timeout += () => tcs.TrySetResult();
+        }
+        catch
+        {
+            tcs.TrySetResult();
+        }
+        return tcs.Task;
     }
 
     private static readonly List<CardModel> _pendingPreviewCards = new();

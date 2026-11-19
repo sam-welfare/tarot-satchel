@@ -137,6 +137,23 @@ public static class PersistencePatcher
                 _harmony.Patch(saveAndQuit, postfix: new HarmonyMethod(onSaveAndQuit));
             }
 
+            // Reward row text: set it when the official button receives its reward, before the first
+            // frame (the poller-based rename used to flash the generic label).
+            var setReward = typeof(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton).GetMethod(
+                "SetReward",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null,
+                new[] { typeof(Reward) }, null);
+            var onSetReward = typeof(PersistencePatcher).GetMethod("OnSetReward",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            if (setReward == null || onSetReward == null)
+            {
+                ModEntry.Log.Warn("[persist] reward row patch target not found", 1);
+            }
+            else
+            {
+                _harmony.Patch(setReward, postfix: new HarmonyMethod(onSetReward));
+            }
+
             ModEntry.Log.Info("[persist] harmony patches installed", 1);
         }
         catch (Exception e)
@@ -156,5 +173,10 @@ public static class PersistencePatcher
     private static void OnSaveAndQuit()
     {
         SatchelRunModel.BeginQuit();
+    }
+
+    private static void OnSetReward(MegaCrit.Sts2.Core.Nodes.Rewards.NRewardButton __instance)
+    {
+        RewardRowLabel.Apply(__instance);
     }
 }
