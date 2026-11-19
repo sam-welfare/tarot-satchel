@@ -39,12 +39,15 @@ public sealed class SatchelRunModel : RunModel
         try
         {
             var checkpointRoom = serializable?.PreFinishedRoom;
+            int historyPoints = HistoryPoints(serializable);
             // The first ToSave after a load re-saves the snapshot we restored from disk. Consume the
             // flag on that call even when it carries no room (null-room saves arrive first for event
             // rooms), otherwise the next genuine checkpoint (e.g. taking the Ancient relic) is swallowed.
             if (_ignoreNextSnapshot)
             {
                 _ignoreNextSnapshot = false;
+                _lastHistoryPoints = historyPoints;
+                try { _lastMapPointRef = ModEntry.Model?.CurrentRun?.CurrentMapPoint; } catch { }
                 if (checkpointRoom != null)
                 {
                     string adopted = CheckpointIdentity(checkpointRoom);
@@ -57,20 +60,53 @@ public sealed class SatchelRunModel : RunModel
                 }
                 return;
             }
-            if (checkpointRoom == null)
-            {
-                // Treasure/shop/rest-site rooms have no pre-finished serialization, and the map-screen
-                // save is not a checkpoint either. Their checkpoint is handled at room entry instead
-                // (AfterRoomEntered), so nothing is written here.
-                ModEntry.Log.Info("[store] ToSave has no pre-finished room; not a checkpoint, skipped", 1);
-                return;
-            }
-            string identity = CheckpointIdentity(checkpointRoom);
             if (_quitting)
             {
-                ModEntry.Log.Info($"[store] save-and-quit re-save; not a checkpoint, skipped: {identity}", 1);
+                ModEntry.Log.Info("[store] save-and-quit re-save; not a checkpoint, skipped", 1);
                 return;
             }
+            if (checkpointRoom == null)
+            {
+                // Null-room saves happen when a map point is selected (the new node is already
+                // CurrentMapPoint, but the history entry is appended only after the save) and when the
+                // game re-saves while sitting on the map/inside a non-serializable room (map screen
+                // shows CurrentMapPoint with type Unknown). Detect the former by map-point identity.
+                object mapPointRef = null;
+                string pointInfo = "?";
+                bool unknownPoint = true;
+                try
+                {
+                    var dbgRun = ModEntry.Model?.CurrentRun;
+                    var mp = dbgRun?.CurrentMapPoint;
+                    mapPointRef = mp;
+                    pointInfo = mp == null ? "null" : mp.PointType.ToString();
+                    unknownPoint = string.Equals(pointInfo, "Unknown", StringComparison.OrdinalIgnoreCase) || mp == null;
+                }
+                catch { }
+                bool newNode = !unknownPoint && !ReferenceEquals(mapPointRef, _lastMapPointRef);
+                ModEntry.Log.Info($"[store] null-room save: points={historyPoints} last={_lastHistoryPoints} mapPoint={pointInfo} newNode={newNode}", 1);
+
+                if (mapPointRef != null) _lastMapPointRef = mapPointRef;
+                if (newNode)
+                {
+                    _lastHistoryPoints = historyPoints;
+                    var mapRun = ModEntry.Model?.CurrentRun;
+                    if (mapRun != null)
+                    {
+                        foreach (var player in mapRun.Players)
+                        {
+                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"map:{pointInfo}"; } catch { }
+                        }
+                        SatchelStore.Save();
+                        ModEntry.Log.Info($"[store] map-point checkpoint ({pointInfo}): {SatchelStore.SnapshotSummary()}", 1);
+                    }
+                    return;
+                }
+                ModEntry.Log.Info("[store] ToSave has no pre-finished room and no new map point; skipped", 1);
+                return;
+            }
+            _lastHistoryPoints = historyPoints;
+            string identity = CheckpointIdentity(checkpointRoom);
 
             var run = ModEntry.Model?.CurrentRun;
             if (run == null) return;
@@ -127,6 +163,8 @@ public sealed class SatchelRunModel : RunModel
     }
 
     private static string _lastCheckpointIdentity;
+    private static int _lastHistoryPoints = -1;
+    private static object _lastMapPointRef;
     private static bool _quitting;
     private static bool _ignoreNextSnapshot;
 
@@ -139,6 +177,21 @@ public sealed class SatchelRunModel : RunModel
         if (_quitting) return;
         _quitting = true;
         ModEntry.Log.Info("[store] save-and-quit detected; no mod state will be written during the quit", 1);
+    }
+
+    /// <summary>Total number of visited map points across acts (the map-point history shape).</summary>
+    private static int HistoryPoints(MegaCrit.Sts2.Core.Saves.SerializableRun run)
+    {
+        int total = 0;
+        try
+        {
+            var history = run?.MapPointHistory;
+            if (history != null)
+                foreach (var act in history)
+                    total += act?.Count ?? 0;
+        }
+        catch { }
+        return total;
     }
 
     /// <summary>Identity of the official checkpoint room (all SerializableRoom state fields).</summary>
@@ -209,6 +262,8 @@ public sealed class SatchelRunModel : RunModel
             _lastCheckpointIdentity = null;
             _quitting = false;
             _ignoreNextSnapshot = true;
+            _lastHistoryPoints = -1;
+            _lastMapPointRef = null;
             _injectedRooms.Clear();
             try
             {
@@ -369,6 +424,38 @@ public sealed class SatchelRunModel : RunModel
             catch (Exception e)
             {
                 ModEntry.Log.Warn($"[store] room-entry save failed: {e.Message}", 1);
+            }
+        }
+        // A real combat node is a checkpoint at entry (map-point/"?" nodes do not always produce a
+        // recognizable ToSave beforehand). Event-option combats are NOT checkpoints: there the base room
+        // is the EventRoom, and vanilla lets the player save & quit back to the event options.
+        if (room is CombatRoom)
+        {
+            bool eventCombat = false;
+            try { eventCombat = CurrentRun?.BaseRoom is EventRoom; } catch { }
+            if (!eventCombat)
+            {
+                try
+                {
+                    var run = CurrentRun;
+                    if (run != null)
+                    {
+                        foreach (var player in run.Players)
+                        {
+                            try { SatchelStore.ForPlayer(player).LastCheckpoint = $"combat-entry:{RoomKey(run)}"; } catch { }
+                        }
+                    }
+                    SatchelStore.Save();
+                    ModEntry.Log.Info($"[store] combat-entry checkpoint: {SatchelStore.SnapshotSummary()}", 1);
+                }
+                catch (Exception e)
+                {
+                    ModEntry.Log.Warn($"[store] combat-entry save failed: {e.Message}", 1);
+                }
+            }
+            else
+            {
+                ModEntry.Log.Info("[store] event-combat entry (no checkpoint by design)", 1);
             }
         }
         return Task.CompletedTask;
