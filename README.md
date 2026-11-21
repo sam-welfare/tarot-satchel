@@ -1,58 +1,85 @@
 # 塔罗袋 / Tarot Satchel
 
-为《杀戮尖塔 2》增加一个两格「塔罗牌栏位」系统：把战斗中临时生成的塔罗牌变成可收集、可携带进下一场战斗的资源。
+为《杀戮尖塔 2》增加一个常驻的「塔罗袋」：战斗掉落的塔罗牌可以收进袋中，在战斗外使用，并在**下一场战斗**的抽牌堆里打出，用后即弃。
+
+- **Steam 创意工坊**：<https://steamcommunity.com/sharedfiles/filedetails/?id=3843479397>
+- **版本支持**：public-beta 测试分支 v0.113
+- **无前置依赖**
 
 ## 玩法
 
-- **掉落**：战斗胜利后按保底系统判定是否掉落塔罗牌（独立保底计数器：初始 15%，未掉 +10%，掉落 −20%，精英战额外 +12.5%，Boss 战与普通战相同）。掉落时一张随机塔罗牌会出现在战斗奖励界面中（卡牌形式）。
-- **领取**：在奖励界面点击塔罗牌即可收进「塔罗袋」。栏位只有 2 格；满了必须先在栏位里丢弃一张，或者放弃该奖励。
-- **使用 / 丢弃**：只在**战斗外**可用（战斗中禁用）。点击顶部栏药水栏下方的塔罗袋格子，弹出「使用 / 丢弃 / 取消」。
-- **使用效果**：塔罗牌被消耗，并在**下一场战斗开始时**加入你的抽牌堆，正常打出。
-- **一次性**：无论是否打出，这场战斗结束后它都会从牌库中移除。
-- **通用**：所有角色可用；不受进阶难度影响。
+- **掉落**：战斗胜利后按保底机制判定：初始 15%，未掉落时下次概率 +10%，掉落后 −20%，精英 +12.5%；Boss 战与普通战斗掉落率相同。
+- **领取**：掉落的塔罗牌以卡牌奖励形式出现在战斗奖励界面，点击后收进顶部栏的「塔罗袋」。
+- **栏位**：塔罗袋位于药水栏对侧，默认 2 格，和药水栏一样常驻显示；栏位满时拒绝领取并播放满仓反馈。
+- **使用 / 丢弃**：只在战斗外可用；点击塔罗牌图标弹出「使用 / 丢弃」。战斗中不可操作。
+- **效果**：使用后，该塔罗牌在下一场战斗开始时加入抽牌堆，可以正常打出。
+- **一次性**：那场战斗结束后，无论是否打出，它都会从牌堆移除，不会进入持久牌组。
+- **SL 一致性**：掉落结果在存档点预掷并写入存档，读档、保存退出、快速 SL 都不会重掷。
 
-## 安装（本地）
+## 安装
 
-把 `TarotSatchel` 文件夹（内含 `TarotSatchel.dll` 和 `TarotSatchel.json`）放进：
+**创意工坊（推荐）**：在 Steam 创意工坊订阅并在游戏内启用即可。
+
+**手动**：把 `TarotSatchel.dll` 与 `TarotSatchel.json` 放进：
 
 ```
-<游戏安装目录>/mods/
+<游戏安装目录>/mods/TarotSatchelFull/
 ```
 
-从 Steam 启动游戏，日志出现 `RUNNING MODDED` 即表示加载成功。本 mod 修改游戏性（`affects_gameplay: true`）：使用时会写入 modded 存档目录；多人联机时所有玩家都需要安装。
+从 Steam 启动游戏，日志出现 `RUNNING MODDED` 即加载成功。本 mod 修改游戏性（`affects_gameplay: true`）：使用 modded 存档目录；多人联机时所有玩家都需要安装。
+
+## 兼容性
+
+已实测共存：**QuickSL**（13 次快速 SL 状态一致）、**BaseLib**、**MintySpire2**、**Intent Graph**、**LieRenTVmod**（模组角色）。
+
+不依赖任何前置 mod；与本 mod 同 id 的副本不要同时放在 `mods/` 和工坊订阅目录，否则会重复加载。
 
 ## 已知限制
 
-- 栏位满时领取奖励会被拒绝（保留奖励，可丢弃一张后再次领取），暂未做「领取时选择替换」弹窗。
-- 多人联机时塔罗袋状态仅存于本地玩家档案，未做跨玩家同步（多人同装可玩，但栏位内容不同步）。
-- 存档由 mod 自己维护（`%APPDATA%/SlayTheSpire2/TarotSatchel/<种子>.json`），与游戏本体存档分离。
+- 多人联机：塔罗袋内容按玩家本地保存，未做同步。
+- 事件选项触发的战斗（如 Punch Off）暂时不会掉落塔罗牌。
+- 栏位满时拒绝领取（暂无「选择替换」弹窗）。
 
 ## 开发
 
-- 纯 C# 类库，目标框架 `net10.0`，引用游戏自带的 `GodotSharp.dll` 与 `sts2.dll`（构建时不需要安装 Godot 编辑器）。
-- 入口：`[ModInitializer]` + `ModHelper.SubscribeForRunStateHooks`；run 模型为 `SatchelRunModel : RunModel`。
+- 纯 C# 类库，`net10.0`，引用游戏自带的 `0Harmony.dll`、`GodotSharp.dll`、`sts2.dll`（构建不需要 Godot 编辑器）。
+- 入口：`[ModInitializer]` + `ModHelper.SubscribeForRunStateHooks`；run 模型 `SatchelRunModel : RunModel`。
 - 奖励：`TarotCardReward : SpecialCardReward`；掉落预掷与检查点写盘见 `官方化改造清单.md`。
-- 注入：`BeforeCombatStart` / `AfterRoomEntered` 洗牌前同步加到抽牌堆（随机位置），`BeforeHandDraw` await 官方预览动画。
-- 存档：只在官方检查点推进时写（`RunManager.ToSave` 的 `PreFinishedRoom` 身份）。
+- 注入：战斗开始/进房时洗牌前同步加入抽牌堆（随机位置），`BeforeHandDraw` 用官方列表预览同时播放。
+- 存档：只在官方检查点推进时写 mod 状态（`RunManager.ToSave` 的 `PreFinishedRoom` 身份、地图点、房间入口）。
 - 状态文件：`%APPDATA%/SlayTheSpire2/TarotSatchel/<种子>.json`。
-- 文档：`AGENTS.md`（规则与官方蓝图）、`官方化改造清单.md`（当前实现与待办）。
-
+- 文档：`AGENTS.md`（规则与官方蓝图）、`官方化改造清单.md`（实现、SL 语义、兼容性记录）、`待办.md`。
 
 ### 构建
 
 ```powershell
-dotnet build -c Release
+cd TarotSatchel; dotnet build -c Release
 # 产物：TarotSatchel/bin/Release/TarotSatchel.dll
 ```
 
 ### 部署到游戏（本地测试）
 
 ```powershell
-./scripts/deploy.ps1
+powershell -File scripts/deploy.ps1
 ```
 
-### 调试日志
+### 发布到创意工坊
+
+```powershell
+powershell -File scripts/prepare-workshop.ps1       # 生成 workshop/upload/TarotSatchel/
+cd workshop/upload
+.\ModUploader-win-x64\ModUploader.exe upload -w TarotSatchel
+```
+
+物品 ID 记录在 `workshop/mod_id.txt`（`scripts/prepare-workshop.ps1` 会自动带入工作区）。
+
+### 调试
 
 游戏日志：`%APPDATA%/SlayTheSpire2/logs/godot.log`，搜索 `[TarotSatchel]`、`[reward]`、`[combat]`、`[use]`、`[store]`。
 
-环境变量 `TAROT_SATCHEL_TEST=1` 会启用调试模式：每次进入非战斗房间时自动使用第一格塔罗牌（用于自动化验证，仅本地调试）。
+常用环境变量：
+
+- `TAROT_SATCHEL_TEST=1`：启用测试驱动（自动开局/测试流程）
+- `TAROT_SATCHEL_PASSIVE=1`：保留驱动但把操作交还玩家
+- `TAROT_SATCHEL_RELICS=PHIAL_HOLSTER,...`：开局添加指定遗物
+- `TAROT_SATCHEL_SLOTS=<1..3>`：临时覆盖栏位数量（上限 3）
