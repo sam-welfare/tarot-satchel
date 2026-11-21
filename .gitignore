@@ -32,3 +32,6 @@ desktop.ini
 
 # Official ModUploader binaries (downloaded, not part of the mod)
 workshop/upload/ModUploader*/
+
+# ModUploader console log
+workshop/upload/*.log
