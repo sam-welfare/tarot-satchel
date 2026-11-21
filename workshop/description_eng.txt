@@ -2,6 +2,9 @@
 
 Turn tarot cards into a one-shot resource that drops naturally and can be used outside combat.
 
+VERSION SUPPORT
+- You tell me (public-beta branch v0.113)
+
 FEATURES
 - After winning a combat, a drop is rolled with a pity system: 15% initially, +10% to the next chance after a miss, -20% after a drop, +12.5% from Elites; Boss fights use the same drop rate as normal combats.
 - A dropped tarot appears as a reward on the Combat Rewards screen; click to claim it into the "Tarot Satchel" on the top bar.
