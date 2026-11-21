@@ -116,6 +116,7 @@ public static class SatchelPoller
     {
         try
         {
+            ArtDump.TryRun();
             var runState = ModEntry.Model?.CurrentRun;
             if (runState == null)
             {
