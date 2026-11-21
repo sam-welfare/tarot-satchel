@@ -25,7 +25,16 @@ Copy-Item $icon (Join-Path $dst "image.png") -Force
 $workspaceJson = Join-Path $dst "workshop.json"
 if (-not (Test-Path $workspaceJson)) {
     Copy-Item (Join-Path $root "workshop\upload\workshop.template.json") $workspaceJson
-    Write-Host "Created workshop.json from template -- fill in 'tags' before the first upload."
+    Write-Host "Created workshop.json from template."
+}
+
+# Keep the published item id outside the generated (gitignored) workspace so updates survive a clean
+# checkout: after the first upload copy workshop\upload\TarotSatchel\mod_id.txt to workshop\mod_id.txt.
+$trackedId = Join-Path $root "workshop\mod_id.txt"
+$workspaceId = Join-Path $dst "mod_id.txt"
+if ((Test-Path $trackedId) -and -not (Test-Path $workspaceId)) {
+    Copy-Item $trackedId $workspaceId -Force
+    Write-Host "Restored mod_id.txt from workshop\mod_id.txt"
 }
 
 Write-Host ""

@@ -21,7 +21,8 @@
    ```powershell
    .\ModUploader.exe upload -w TarotSatchel
    ```
-4. 上传成功后工作区会生成 `mod_id.txt`（工坊物品 ID），提交进仓库便于后续更新。
+4. 上传成功后工作区会生成 `mod_id.txt`（工坊物品 ID）。把它复制到 `workshop/mod_id.txt` 并提交；
+   `scripts/prepare-workshop.ps1` 重建工作区时会自动把它拷回去。
 5. 在工坊页面填写：
    - 标题：`Tarot Satchel (塔罗袋)`
    - 简介：复制 `workshop/description_eng.txt` + `workshop/description_zhs.txt`
