@@ -82,8 +82,6 @@ public static class ArtDump
                 ModEntry.Log.Warn("[art] card.tscn not found", 1);
                 return;
             }
-            var node = packed.Instantiate();
-            viewport.AddChild(node);
             var model = MegaCrit.Sts2.Core.Models.ModelDb.GetByIdOrNull<CardModel>(
                 MegaCrit.Sts2.Core.Models.ModelId.Deserialize(cardId));
             if (model == null)
@@ -91,19 +89,18 @@ public static class ArtDump
                 ModEntry.Log.Warn($"[art] card model not found: {cardId}", 1);
                 return;
             }
-            var cardNode = node as MegaCrit.Sts2.Core.Nodes.Cards.NCard;
+            var cardNode = MegaCrit.Sts2.Core.Nodes.Cards.NCard.Create(
+                model, MegaCrit.Sts2.Core.Entities.UI.ModelVisibility.Visible);
             if (cardNode == null)
             {
-                ModEntry.Log.Warn("[art] card.tscn root is not NCard", 1);
+                ModEntry.Log.Warn("[art] NCard.Create returned null", 1);
                 return;
             }
-            cardNode.Model = model;
+            viewport.AddChild(cardNode);
             for (int i = 0; i < 20; i++)
                 await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
 
-            var control = node as Control;
-            if (control != null)
-                ModEntry.Log.Info($"[art] card node size={control.Size} pos={control.Position}", 1);
+            ModEntry.Log.Info($"[art] card node size={cardNode.Size} pos={cardNode.Position}", 1);
             var image = viewport.GetTexture().GetImage();
             if (image == null)
             {
