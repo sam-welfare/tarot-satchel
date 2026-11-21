@@ -9,10 +9,10 @@ FEATURES
 - Outside combat, click a tarot icon to open "Use / Discard"; it cannot be used during combat.
 - After use, the tarot is added to your draw pile at the start of your next combat and can be played normally.
 - One-shot: when that combat ends it is removed from the pile whether or not you played it, and it never enters your persistent deck.
-- The drop is pre-rolled and written at each save point: loading a save, save & quit and QuickSL reloads never reroll it, and pity and satchel state stay consistent.
+- The drop is pre-rolled and written at each save point: loading a save, save & quit and QuickSL reloads never reroll it.
 
 SCOPE
-- Works for all characters (including modded characters); unaffected by Ascension level.
+- Works for all characters; unaffected by Ascension level.
 - Uses the game's 22 built-in tarot cards; adds no new cards.
 - No mod dependencies.
 
