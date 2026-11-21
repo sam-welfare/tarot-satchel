@@ -5,6 +5,7 @@
 - **Steam 创意工坊**：<https://steamcommunity.com/sharedfiles/filedetails/?id=3843479397>
 - **版本支持**：public-beta 测试分支 v0.113
 - **无前置依赖**
+- **协议**：代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)，**禁止任何商业用途**；游戏素材（见下方「素材说明」）不在本协议范围内。
 
 ## 玩法
 
@@ -83,3 +84,8 @@ cd workshop/upload
 - `TAROT_SATCHEL_PASSIVE=1`：保留驱动但把操作交还玩家
 - `TAROT_SATCHEL_RELICS=PHIAL_HOLSTER,...`：开局添加指定遗物
 - `TAROT_SATCHEL_SLOTS=<1..3>`：临时覆盖栏位数量（上限 3）
+
+## 素材说明
+
+`workshop/icon.png`（工坊封面）使用《杀戮尖塔 2》官方塔罗牌「塔」的卡图，版权归 MegaCrit Games 所有，仅用于标识本 mod，**不在** PolyForm Noncommercial 协议的授权范围内；游戏内其他卡面/图像同理。
+
