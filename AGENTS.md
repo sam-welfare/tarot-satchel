@@ -21,6 +21,7 @@
   `D:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\TarotSatchelFull\`
 - 日志：`%APPDATA%\SlayTheSpire2\logs\godot.log`（标签 `[ui] [reward] [combat] [use] [store] [test] [persist]`)
 - 自动测试：`$env:TAROT_SATCHEL_TEST='1'`；mod 自截图 `$env:TAROT_SATCHEL_SHOT=<png路径>`；探针 `$env:TAROT_SATCHEL_PROBE='1'`；栏位格数 `$env:TAROT_SATCHEL_SLOTS=<1..3>`（模拟未来栏位遗物，上限 3）
+- 创意工坊：`powershell -File scripts/prepare-workshop.ps1` 生成 `workshop/upload/TarotSatchel/`（工作区不入库），上传步骤见 `workshop/upload/README.md`
 
 ## 2. 已知的官方「蓝图」（持续补充）
 
