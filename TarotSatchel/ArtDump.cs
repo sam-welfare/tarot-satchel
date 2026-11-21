@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Models;
 
 namespace TarotSatchel;
 
@@ -14,6 +15,12 @@ public static class ArtDump
     private static bool _done;
 
     public static void TryRun()
+    {
+        TryDumpPortraits();
+        TryRenderCard();
+    }
+
+    private static void TryDumpPortraits()
     {
         if (_done) return;
         var dir = System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_DUMP_ART");
@@ -36,6 +43,80 @@ public static class ArtDump
         catch (Exception e)
         {
             ModEntry.Log.Warn($"[art] dump failed: {e.Message}", 1);
+        }
+    }
+
+    private static bool _renderStarted;
+
+    /// <summary>
+    /// Render one official card face (frame + art + title) off-screen through the game's own
+    /// <c>card.tscn</c> and save it as PNG: TAROT_SATCHEL_RENDER_CARD=card id, TAROT_SATCHEL_RENDER_OUT=png path.
+    /// </summary>
+    private static void TryRenderCard()
+    {
+        if (_renderStarted) return;
+        var cardId = System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_RENDER_CARD");
+        var outPath = System.Environment.GetEnvironmentVariable("TAROT_SATCHEL_RENDER_OUT");
+        if (string.IsNullOrWhiteSpace(cardId) || string.IsNullOrWhiteSpace(outPath)) return;
+        _renderStarted = true;
+        RenderCardAsync(cardId, outPath);
+    }
+
+    private static async void RenderCardAsync(string cardId, string outPath)
+    {
+        try
+        {
+            var tree = Engine.GetMainLoop() as SceneTree;
+            if (tree == null) return;
+            var viewport = new SubViewport
+            {
+                Size = new Vector2I(760, 1100),
+                TransparentBg = true,
+                RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            };
+            tree.Root.AddChild(viewport);
+
+            var packed = GD.Load<PackedScene>("res://scenes/cards/card.tscn");
+            if (packed == null)
+            {
+                ModEntry.Log.Warn("[art] card.tscn not found", 1);
+                return;
+            }
+            var node = packed.Instantiate();
+            viewport.AddChild(node);
+            var model = MegaCrit.Sts2.Core.Models.ModelDb.GetByIdOrNull<CardModel>(
+                MegaCrit.Sts2.Core.Models.ModelId.Deserialize(cardId));
+            if (model == null)
+            {
+                ModEntry.Log.Warn($"[art] card model not found: {cardId}", 1);
+                return;
+            }
+            var cardNode = node as MegaCrit.Sts2.Core.Nodes.Cards.NCard;
+            if (cardNode == null)
+            {
+                ModEntry.Log.Warn("[art] card.tscn root is not NCard", 1);
+                return;
+            }
+            cardNode.Model = model;
+            for (int i = 0; i < 20; i++)
+                await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+
+            var control = node as Control;
+            if (control != null)
+                ModEntry.Log.Info($"[art] card node size={control.Size} pos={control.Position}", 1);
+            var image = viewport.GetTexture().GetImage();
+            if (image == null)
+            {
+                ModEntry.Log.Warn("[art] viewport image null", 1);
+                return;
+            }
+            var error = image.SavePng(outPath);
+            ModEntry.Log.Info($"[art] rendered {cardId} -> {outPath} ({error})", 1);
+            viewport.QueueFree();
+        }
+        catch (Exception e)
+        {
+            ModEntry.Log.Warn($"[art] render failed: {e.Message}", 1);
         }
     }
 
