@@ -1,40 +1,40 @@
 [TAROT SATCHEL]
 
-Turn tarot cards into a one-shot resource that drops naturally and can be used outside combat.
+Turn tarot cards into a one-shot out-of-combat resource that drops naturally and can be used.
 
 FEATURES
-- Win a combat to roll for a tarot drop with an adaptive pity system: 15% initially, +10% on a miss, -20% on a drop, +12.5% on elites; boss fights use the same chance as normal combats.
-- A dropped tarot appears as a reward on the combat reward screen; claim it to store it in the satchel on the top bar.
-- The satchel sits opposite the potion bar, holds 2 tarots by default and stays visible like the potion bar.
-- Outside combat, click a tarot icon to Use / Discard; slots cannot be used during combat.
-- Using a tarot adds it to your draw pile at the start of your next combat, where it can be played normally.
-- One-shot: when that combat ends it is removed from the pile whether you played it or not, and it never enters your persistent deck.
-- The drop is pre-rolled and written at each official checkpoint, so loading a save, save & quit and QuickSL reloads never reroll: pity and satchel state stay consistent.
+- After winning a combat, a drop is rolled with a pity system: 15% initially, +10% to the next chance after a miss, -20% after a drop, +12.5% from Elites; Boss fights use the same drop rate as normal combats.
+- A dropped tarot appears as a reward on the Combat Rewards screen; click to claim it into the "Tarot Satchel" on the top bar.
+- The satchel sits opposite the potion slots, holds 2 slots by default and is always visible like the potion slots.
+- Outside combat, click a tarot icon to open "Use / Discard"; it cannot be used during combat.
+- After use, the tarot is added to your draw pile at the start of your next combat and can be played normally.
+- One-shot: when that combat ends it is removed from the pile whether or not you played it, and it never enters your persistent deck.
+- The drop is pre-rolled and written at each save point: loading a save, save & quit and QuickSL reloads never reroll it, and pity and satchel state stay consistent.
 
 SCOPE
-- All characters, including modded ones; no ascension changes.
-- Uses the game's existing 22-card tarot pool; adds no new cards.
-- No dependencies on other mods.
+- Works for all characters (including modded characters); unaffected by Ascension level.
+- Uses the game's 22 built-in tarot cards; adds no new cards.
+- No mod dependencies.
 
 INSTALL
-- Subscribe on the Steam Workshop and enable it, or drop the mod folder into the game's mods folder and launch the game through Steam.
-- This mod changes gameplay: it uses modded saves, and every player needs it installed for multiplayer.
+- Subscribe on the Steam Workshop and it is enabled directly; or put the mod folder into the game's mods folder and launch the game through Steam.
+- This mod changes gameplay: it uses modded saves; in multiplayer, every player must install it.
 
 KNOWN LIMITATIONS
-- Multiplayer: satchel contents are tracked locally per player and are not synced.
-- Combat encounters started from event options (for example the beloved double-robot brawl event) do not drop tarots for now.
+- Multiplayer: satchel contents are saved locally per player and are not synced.
+- Combat encounters triggered by event options (such as the beloved Punch Off event, where two Punch Constructs brawl) do not drop tarots for now.
 
 MOD COMPATIBILITY
-- Tested together with: QuickSL, BaseLib, MintySpire2, Intent Graph and LieRenTVmod.
+- Tested for compatibility with: QuickSL, BaseLib, MintySpire2, Intent Graph, LieRenTVmod.
 
 AI DISCLOSURE
-- This mod was produced with AI assistance and every feature was verified in-game. The Workshop cover uses the in-game official art of the tarot card "The Tower".
+- This mod was made with AI assistance, and all features were verified in-game; the Workshop cover uses the in-game official art of the tarot card "The Tower".
 
 ROADMAP
 - New starting relic and multi-tarot drop reward types
 - New divination event option
 - Tarot "carry-over" and upgrade mechanics
-- Tarot drops from event combats (let me see if I can fix this bug — a nod to Card Plan being ready)
+- Tarot drops from event combats (let me see if I can fix this bug — paying tribute to Well-Laid Plans)
 - If you have any fun ideas, feel free to share them
 
 FEEDBACK
@@ -43,4 +43,4 @@ FEEDBACK
 
 OFF-TOPIC
 - I've been busy lately, so updates are slow — thanks for understanding.
-- Balance is not the goal of this mod; it aims to explore what tarot cards can do outside of combat (inspired by The Binding of Isaac).
+- Balance is not what this mod pursues; it aims to explore the possibilities of tarot cards in out-of-combat play (inspired by The Binding of Isaac).
