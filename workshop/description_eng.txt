@@ -1,15 +1,15 @@
 [TAROT SATCHEL]
 
-Turn tarot cards into a one-shot resource you can carry out of combat and spend in your next fight.
+Turn tarot cards into a one-shot resource that drops naturally and can be used outside combat.
 
 FEATURES
-- Win a combat to roll for a tarot drop with an adaptive pity system: 15% initially, +10% after a miss, -20% after a drop, +12.5% on elites. Bosses use the normal encounter chance.
-- A dropped tarot appears as a card-form reward. Claim it to store it in the satchel on the top bar.
-- The satchel sits opposite the potion bar, holds 2 tarots by default (capacity is capped at 3) and stays visible for the whole run.
-- Outside combat only: click a slot to Use / Discard / Cancel. Slots cannot be used during combat.
+- Win a combat to roll for a tarot drop with an adaptive pity system: 15% initially, +10% on a miss, -20% on a drop, +12.5% on elites; boss fights use the same chance as normal combats.
+- A dropped tarot appears as a reward on the combat reward screen; claim it to store it in the satchel on the top bar.
+- The satchel sits opposite the potion bar, holds 2 tarots by default and stays visible like the potion bar.
+- Outside combat, click a tarot icon to Use / Discard; slots cannot be used during combat.
 - Using a tarot adds it to your draw pile at the start of your next combat, where it can be played normally.
-- One-shot: when that combat ends the tarot is removed whether you played it or not, and it never enters your persistent deck.
-- The drop is pre-rolled and stored at each official checkpoint, so loading a save, save & quit and QuickSL reloads never reroll: pity and satchel state stay consistent.
+- One-shot: when that combat ends it is removed from the pile whether you played it or not, and it never enters your persistent deck.
+- The drop is pre-rolled and written at each official checkpoint, so loading a save, save & quit and QuickSL reloads never reroll: pity and satchel state stay consistent.
 
 SCOPE
 - All characters, including modded ones; no ascension changes.
@@ -17,28 +17,30 @@ SCOPE
 - No dependencies on other mods.
 
 INSTALL
-- Subscribe on the Steam Workshop and enable it, or drop the mod folder into the game's mods/ directory and launch from Steam.
+- Subscribe on the Steam Workshop and enable it, or drop the mod folder into the game's mods folder and launch the game through Steam.
 - This mod changes gameplay: it uses modded saves, and every player needs it installed for multiplayer.
 
 KNOWN LIMITATIONS
 - Multiplayer: satchel contents are tracked locally per player and are not synced.
-- Combat encounters started from event options do not roll tarots yet (event combats produce no checkpoint, so the pre-roll cannot be fixed in the save).
-- Claiming while the satchel is full is refused with the full-satchel feedback; use or discard a tarot first (no replace-picker popup yet).
+- Combat encounters started from event options (for example the beloved double-robot brawl event) do not drop tarots for now.
 
 MOD COMPATIBILITY
-- Tested together with: QuickSL (13 quick save-loads, states stayed consistent), BaseLib, MintySpire2, Intent Graph, LieRenTVmod and Mesugaki_Regent.
-- If you find a conflict, leave a comment on the Workshop page with %APPDATA%\SlayTheSpire2\logs\godot.log attached.
+- Tested together with: QuickSL, BaseLib, MintySpire2, Intent Graph and LieRenTVmod.
 
 AI DISCLOSURE
-- This mod's code and documentation were produced with AI assistance and every feature was verified in-game. The Workshop cover uses the in-game official art of the tarot card "The Tower".
+- This mod was produced with AI assistance and every feature was verified in-game. The Workshop cover uses the in-game official art of the tarot card "The Tower".
 
 ROADMAP
 - New starting relic and multi-tarot drop reward types
 - New divination event option
-- End-of-combat report
-- Tarot "carry-over" mechanic
-- Tarot drops from event combats
+- Tarot "carry-over" and upgrade mechanics
+- Tarot drops from event combats (let me see if I can fix this bug — a nod to Card Plan being ready)
+- If you have any fun ideas, feel free to share them
 
 FEEDBACK
-- Steam Workshop comments (please attach godot.log for crashes or odd behavior)
+- Steam Workshop comments
 - GitHub Issues: https://github.com/sam-welfare/tarot-satchel/issues
+
+OFF-TOPIC
+- I've been busy lately, so updates are slow — thanks for understanding.
+- Balance is not the goal of this mod; it aims to explore what tarot cards can do outside of combat (inspired by The Binding of Isaac).
