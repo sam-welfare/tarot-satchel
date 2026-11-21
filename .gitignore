@@ -29,3 +29,6 @@ sim_pity.py
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Official ModUploader binaries (downloaded, not part of the mod)
+workshop/upload/ModUploader*/
