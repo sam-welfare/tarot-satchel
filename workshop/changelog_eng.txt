@@ -1,0 +1,5 @@
+v0.2.0 (2026-11-27)
+
+- Updated for the public-beta v0.114.0: rebuilt against the new game assemblies and smoke-tested (loading, satchel slots, drops/claims, next-combat injection, event checkpoints, simultaneous tarot preview).
+- Bumped the mod version and min_game_version; no gameplay changes.
+- If you are on the v0.113 branch, stay on 0.1.0 until that branch is updated.
