@@ -1,9 +1,9 @@
-# 塔罗袋 / Tarot Satchel
+﻿# 塔罗袋 / Tarot Satchel
 
 为《杀戮尖塔 2》增加一个常驻的「塔罗袋」：战斗掉落的塔罗牌可以收进袋中，在战斗外使用，并在**下一场战斗**的抽牌堆里打出，用后即弃。
 
 - **Steam 创意工坊**：<https://steamcommunity.com/sharedfiles/filedetails/?id=3843479397>
-- **版本支持**：public-beta 测试分支 v0.113
+- **版本支持**：public-beta 测试分支 v0.114
 - **无前置依赖**
 - **协议**：代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)，**禁止任何商业用途**；游戏素材（见下方「素材说明」）不在本协议范围内。
 
